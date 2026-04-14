@@ -90,12 +90,16 @@ export default function StaffDashboard() {
     initGates();
   }, [user]);
 
+  const [loginError, setLoginError] = useState<string | null>(null);
+
   const handleLogin = async () => {
+    setLoginError(null);
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error signing in", error);
+      setLoginError(error.message || "Failed to sign in. If you are in an iframe, try opening the app in a new tab.");
     }
   };
 
@@ -158,6 +162,17 @@ export default function StaffDashboard() {
           </div>
           <h1 className="text-2xl font-bold text-slate-100 mb-2">Staff Authentication</h1>
           <p className="text-slate-400 mb-8">Please sign in to access the VenueFlow Command Center.</p>
+          
+          {loginError && (
+            <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm text-left">
+              <p className="font-bold mb-1">Sign-in Error:</p>
+              <p>{loginError}</p>
+              <p className="mt-2 text-xs opacity-80">
+                Note: Browsers often block authentication popups inside iframes. Please click the "Open in new tab" icon (↗) in the top right of the preview window and try again.
+              </p>
+            </div>
+          )}
+
           <button 
             onClick={handleLogin}
             className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
