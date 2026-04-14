@@ -6,11 +6,17 @@ import TicketEntry, { TicketData } from './components/TicketEntry';
 import IndoorNavigation from './components/IndoorNavigation';
 import StaffDashboard from './components/StaffDashboard';
 import Recommendations from './components/Recommendations';
+import SmartGuide from './components/SmartGuide';
 
 export default function App() {
   const [activeView, setActiveView] = useState<'landing' | 'routing' | 'navigation' | 'staff'>('landing');
   const [ticket, setTicket] = useState<TicketData | null>(null);
   
+  // Menu and Search State
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
   // Mock global alert state
   const [activeAlert, setActiveAlert] = useState<{message: string, type: 'warning' | 'info' | 'critical'} | null>({
     message: "South Stand concessions experiencing high volume. Please use East Wing.",
@@ -91,7 +97,11 @@ export default function App() {
                 <ChevronLeft className="w-6 h-6 text-slate-300" />
               </button>
             ) : (
-              <button aria-label="Menu" className="p-2 -ml-2 hover:bg-slate-800 rounded-full transition-colors">
+              <button 
+                onClick={() => setIsMenuOpen(true)}
+                aria-label="Menu" 
+                className="p-2 -ml-2 hover:bg-slate-800 rounded-full transition-colors"
+              >
                 <Menu className="w-6 h-6 text-slate-300" />
               </button>
             )}
@@ -114,12 +124,135 @@ export default function App() {
             >
               <Shield className="w-5 h-5 text-indigo-400" />
             </button>
-            <button aria-label="Search" className="p-2 hover:bg-slate-800 rounded-full transition-colors">
+            <button 
+              onClick={() => setIsSearchOpen(true)}
+              aria-label="Search" 
+              className="p-2 hover:bg-slate-800 rounded-full transition-colors"
+            >
               <Search className="w-5 h-5 text-slate-400" />
             </button>
           </div>
         </div>
       </header>
+
+      {/* Menu Overlay */}
+      <AnimatePresence>
+        {isMenuOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMenuOpen(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+            />
+            <motion.div
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed top-0 left-0 bottom-0 w-3/4 max-w-sm bg-slate-900 border-r border-slate-800 z-50 p-6 flex flex-col"
+            >
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex flex-col">
+                  <h2 className="text-xl font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">VenueFlow</h2>
+                  <span className="text-xs text-slate-400 font-medium tracking-wide">Wembley Stadium</span>
+                </div>
+                <button onClick={() => setIsMenuOpen(false)} className="p-2 hover:bg-slate-800 rounded-full transition-colors">
+                  <X className="w-5 h-5 text-slate-400" />
+                </button>
+              </div>
+              <nav className="flex flex-col gap-2">
+                {['My Tickets', 'Stadium Map', 'Food & Beverage', 'Merchandise', 'Accessibility', 'Help & Support'].map((item) => (
+                  <button 
+                    key={item} 
+                    onClick={() => setIsMenuOpen(false)}
+                    className="text-left py-3 px-4 rounded-xl hover:bg-slate-800 text-slate-200 font-medium transition-colors"
+                  >
+                    {item}
+                  </button>
+                ))}
+              </nav>
+              <div className="mt-auto pt-6 border-t border-slate-800">
+                <button 
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    toggleStaffDashboard();
+                  }}
+                  className="w-full flex items-center gap-3 text-left py-3 px-4 rounded-xl hover:bg-slate-800 text-indigo-400 font-medium transition-colors"
+                >
+                  <Shield className="w-5 h-5" />
+                  Staff Login
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Search Overlay */}
+      <AnimatePresence>
+        {isSearchOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex flex-col"
+          >
+            <div className="max-w-md mx-auto w-full p-4 flex items-center gap-3 border-b border-slate-800">
+              <Search className="w-5 h-5 text-slate-400" />
+              <input
+                autoFocus
+                type="text"
+                placeholder="Search for gates, food, restrooms..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="flex-1 bg-transparent border-none outline-none text-slate-100 placeholder:text-slate-500"
+              />
+              <button 
+                onClick={() => { setIsSearchOpen(false); setSearchQuery(''); }} 
+                className="p-2 hover:bg-slate-800 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+            <div className="max-w-md mx-auto w-full p-4">
+              {searchQuery.length > 0 ? (
+                <div className="space-y-4">
+                  <p className="text-sm text-slate-500 font-medium px-2">Results for "{searchQuery}"</p>
+                  {['North Gate', 'Burger Stand (Level 1)', 'Restrooms (East Wing)', 'Merchandise Shop', 'First Aid (South)', 'Gate S'].filter(i => i.toLowerCase().includes(searchQuery.toLowerCase())).map((item, i) => (
+                    <div key={i} className="p-4 bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-between group cursor-pointer hover:bg-slate-800 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <MapPin className="w-5 h-5 text-indigo-400" />
+                        <span className="text-slate-200 font-medium">{item}</span>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  ))}
+                  {['North Gate', 'Burger Stand (Level 1)', 'Restrooms (East Wing)', 'Merchandise Shop', 'First Aid (South)', 'Gate S'].filter(i => i.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
+                    <p className="text-slate-400 text-center py-8">No results found.</p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-sm text-slate-500 font-medium px-2">Popular Searches</p>
+                  <div className="flex flex-wrap gap-2">
+                    {['Restrooms', 'Hot Dogs', 'Gate N', 'First Aid', 'Merch'].map((tag) => (
+                      <button 
+                        key={tag} 
+                        onClick={() => setSearchQuery(tag)} 
+                        className="px-4 py-2 bg-slate-900 border border-slate-800 rounded-full text-sm text-slate-300 hover:bg-slate-800 transition-colors"
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Live Alert Banner */}
       <AnimatePresence>
@@ -277,6 +410,9 @@ export default function App() {
           )}
         </AnimatePresence>
       </main>
+
+      {/* Floating AI Assistant */}
+      <SmartGuide />
     </div>
   );
 }
