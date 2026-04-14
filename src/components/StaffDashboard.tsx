@@ -1,9 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Shield, Radio, Clock, AlertTriangle, CheckCircle2, Users, Send, LogIn, LogOut } from 'lucide-react';
-import { db, auth } from '../firebase';
-import { collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, query, orderBy, serverTimestamp, getDocs } from 'firebase/firestore';
-import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, User } from 'firebase/auth';
+import { Shield, Radio, Clock, AlertTriangle, CheckCircle2, Users, Send } from 'lucide-react';
 
 interface GateStatus {
   id: string;
@@ -17,134 +14,44 @@ interface Alert {
   message: string;
   type: 'info' | 'warning' | 'critical';
   time: string;
-  createdAt?: any;
 }
 
 export default function StaffDashboard() {
-  const [user, setUser] = useState<User | null>(null);
-  const [gates, setGates] = useState<GateStatus[]>([]);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [gates, setGates] = useState<GateStatus[]>([
+    { id: 'n', name: 'Gate N', waitTime: 5, status: 'normal' },
+    { id: 's', name: 'Gate S', waitTime: 12, status: 'busy' },
+    { id: 'e', name: 'Gate E', waitTime: 2, status: 'normal' },
+    { id: 'w', name: 'Gate W', waitTime: 8, status: 'normal' },
+  ]);
+
+  const [alerts, setAlerts] = useState<Alert[]>([
+    { id: '1', message: 'South Stand concessions experiencing high volume.', type: 'warning', time: '10:42 AM' },
+  ]);
+
   const [newAlertMsg, setNewAlertMsg] = useState('');
   const [newAlertType, setNewAlertType] = useState<'info' | 'warning' | 'critical'>('info');
 
-  useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
-    return () => unsubscribeAuth();
-  }, []);
-
-  useEffect(() => {
-    // Listen to Gates
-    const unsubscribeGates = onSnapshot(collection(db, 'gates'), (snapshot) => {
-      const gatesData: GateStatus[] = [];
-      snapshot.forEach((doc) => {
-        gatesData.push({ id: doc.id, ...doc.data() } as GateStatus);
-      });
-      // Sort by name
-      gatesData.sort((a, b) => a.name.localeCompare(b.name));
-      setGates(gatesData);
-    }, (error) => {
-      console.error("Error fetching gates:", error);
-    });
-
-    // Listen to Alerts
-    const q = query(collection(db, 'alerts'), orderBy('createdAt', 'desc'));
-    const unsubscribeAlerts = onSnapshot(q, (snapshot) => {
-      const alertsData: Alert[] = [];
-      snapshot.forEach((doc) => {
-        alertsData.push({ id: doc.id, ...doc.data() } as Alert);
-      });
-      setAlerts(alertsData);
-    }, (error) => {
-      console.error("Error fetching alerts:", error);
-    });
-
-    return () => {
-      unsubscribeGates();
-      unsubscribeAlerts();
-    };
-  }, []);
-
-  // Initialize default gates if empty
-  useEffect(() => {
-    const initGates = async () => {
-      if (!user) return;
-      const snapshot = await getDocs(collection(db, 'gates'));
-      if (snapshot.empty) {
-        const defaultGates = [
-          { id: 'n', name: 'Gate N', waitTime: 5, status: 'normal' },
-          { id: 's', name: 'Gate S', waitTime: 12, status: 'busy' },
-          { id: 'e', name: 'Gate E', waitTime: 2, status: 'normal' },
-          { id: 'w', name: 'Gate W', waitTime: 8, status: 'normal' },
-        ];
-        for (const gate of defaultGates) {
-          await setDoc(doc(db, 'gates', gate.id), {
-            name: gate.name,
-            waitTime: gate.waitTime,
-            status: gate.status
-          });
-        }
-      }
-    };
-    initGates();
-  }, [user]);
-
-  const [loginError, setLoginError] = useState<string | null>(null);
-
-  const handleLogin = async () => {
-    setLoginError(null);
-    const provider = new GoogleAuthProvider();
-    try {
-      await signInWithPopup(auth, provider);
-    } catch (error: any) {
-      console.error("Error signing in", error);
-      setLoginError(error.message || "Failed to sign in. If you are in an iframe, try opening the app in a new tab.");
-    }
+  const handleUpdateWaitTime = (id: string, newTime: number) => {
+    setGates(gates.map(g => g.id === id ? { ...g, waitTime: newTime, status: newTime > 10 ? 'busy' : 'normal' } : g));
   };
 
-  const handleLogout = async () => {
-    await signOut(auth);
-  };
-
-  const handleUpdateWaitTime = async (id: string, newTime: number) => {
-    if (!user) return;
-    try {
-      const status = newTime > 10 ? 'busy' : 'normal';
-      await updateDoc(doc(db, 'gates', id), {
-        waitTime: newTime,
-        status: status
-      });
-    } catch (error) {
-      console.error("Error updating wait time:", error);
-    }
-  };
-
-  const handleSendAlert = async (e: React.FormEvent) => {
+  const handleSendAlert = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newAlertMsg.trim() || !user) return;
+    if (!newAlertMsg.trim()) return;
     
-    try {
-      const newAlertRef = doc(collection(db, 'alerts'));
-      await setDoc(newAlertRef, {
-        message: newAlertMsg,
-        type: newAlertType,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        createdAt: serverTimestamp()
-      });
-      setNewAlertMsg('');
-    } catch (error) {
-      console.error("Error sending alert:", error);
-    }
+    const newAlert: Alert = {
+      id: Date.now().toString(),
+      message: newAlertMsg,
+      type: newAlertType,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+    
+    setAlerts([newAlert, ...alerts]);
+    setNewAlertMsg('');
   };
 
-  const handleDeleteAlert = async (id: string) => {
-    if (!user) return;
-    try {
-      await deleteDoc(doc(db, 'alerts', id));
-    } catch (error) {
-      console.error("Error deleting alert:", error);
-    }
+  const handleDeleteAlert = (id: string) => {
+    setAlerts(alerts.filter(a => a.id !== id));
   };
 
   const getStatusColor = (status: string) => {
@@ -152,38 +59,6 @@ export default function StaffDashboard() {
     if (status === 'busy') return 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20';
     return 'text-red-400 bg-red-500/10 border-red-500/20';
   };
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-md w-full text-center">
-          <div className="w-16 h-16 bg-indigo-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Shield className="w-8 h-8 text-indigo-400" />
-          </div>
-          <h1 className="text-2xl font-bold text-slate-100 mb-2">Staff Authentication</h1>
-          <p className="text-slate-400 mb-8">Please sign in to access the VenueFlow Command Center.</p>
-          
-          {loginError && (
-            <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm text-left">
-              <p className="font-bold mb-1">Sign-in Error:</p>
-              <p>{loginError}</p>
-              <p className="mt-2 text-xs opacity-80">
-                Note: Browsers often block authentication popups inside iframes. Please click the "Open in new tab" icon (↗) in the top right of the preview window and try again.
-              </p>
-            </div>
-          )}
-
-          <button 
-            onClick={handleLogin}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
-          >
-            <LogIn className="w-5 h-5" />
-            Sign in with Google
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 p-4 md:p-8 font-sans">
@@ -205,13 +80,6 @@ export default function StaffDashboard() {
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
               <span className="text-sm font-medium text-emerald-400">System Online</span>
             </div>
-            <button 
-              onClick={handleLogout}
-              className="p-2 hover:bg-slate-800 rounded-full transition-colors text-slate-400"
-              title="Sign Out"
-            >
-              <LogOut className="w-5 h-5" />
-            </button>
           </div>
         </header>
 

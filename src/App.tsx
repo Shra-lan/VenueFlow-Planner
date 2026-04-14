@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapPin, Navigation, Users, AlertCircle, ChevronLeft, Search, Menu, Clock, ArrowRight, ExternalLink, Shield, AlertTriangle, X } from 'lucide-react';
 import StadiumMap from './components/StadiumMap';
@@ -6,56 +6,16 @@ import TicketEntry, { TicketData } from './components/TicketEntry';
 import IndoorNavigation from './components/IndoorNavigation';
 import StaffDashboard from './components/StaffDashboard';
 import Recommendations from './components/Recommendations';
-import { db } from './firebase';
-import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
-
-interface GateStatus {
-  id: string;
-  name: string;
-  waitTime: number;
-  status: 'normal' | 'busy' | 'closed';
-}
-
-interface Alert {
-  id: string;
-  message: string;
-  type: 'info' | 'warning' | 'critical';
-  time: string;
-}
 
 export default function App() {
   const [activeView, setActiveView] = useState<'landing' | 'routing' | 'navigation' | 'staff'>('landing');
   const [ticket, setTicket] = useState<TicketData | null>(null);
   
-  const [activeAlert, setActiveAlert] = useState<Alert | null>(null);
-  const [gates, setGates] = useState<Record<string, GateStatus>>({});
-
-  useEffect(() => {
-    // Listen to the most recent alert
-    const q = query(collection(db, 'alerts'), orderBy('createdAt', 'desc'), limit(1));
-    const unsubscribeAlerts = onSnapshot(q, (snapshot) => {
-      if (!snapshot.empty) {
-        const doc = snapshot.docs[0];
-        setActiveAlert({ id: doc.id, ...doc.data() } as Alert);
-      } else {
-        setActiveAlert(null);
-      }
-    });
-
-    // Listen to all gates
-    const unsubscribeGates = onSnapshot(collection(db, 'gates'), (snapshot) => {
-      const gatesMap: Record<string, GateStatus> = {};
-      snapshot.forEach((doc) => {
-        gatesMap[doc.id] = { id: doc.id, ...doc.data() } as GateStatus;
-      });
-      setGates(gatesMap);
-    });
-
-    return () => {
-      unsubscribeAlerts();
-      unsubscribeGates();
-    };
-  }, []);
+  // Mock global alert state
+  const [activeAlert, setActiveAlert] = useState<{message: string, type: 'warning' | 'info' | 'critical'} | null>({
+    message: "South Stand concessions experiencing high volume. Please use East Wing.",
+    type: "warning"
+  });
 
   const handleTicketSubmit = (ticketData: TicketData) => {
     setTicket(ticketData);
@@ -83,32 +43,14 @@ export default function App() {
     }
   };
 
-  // Live routing logic based on stand and Firebase data
+  // Mock routing logic based on stand
   const getRouteInfo = (stand: string) => {
     const s = stand.toLowerCase();
-    let gateId = 'n';
-    if (s === 'north') gateId = 'n';
-    else if (s === 'south') gateId = 's';
-    else if (s === 'east') gateId = 'e';
-    else if (s === 'west') gateId = 'w';
-    
-    const gateData = gates[gateId];
-    
-    if (gateData) {
-      let color = 'text-emerald-400';
-      let bg = 'bg-emerald-500/10';
-      if (gateData.status === 'busy') {
-        color = 'text-yellow-400';
-        bg = 'bg-yellow-500/10';
-      } else if (gateData.status === 'closed') {
-        color = 'text-red-400';
-        bg = 'bg-red-500/10';
-      }
-      return { gate: gateData.name, wait: `${gateData.waitTime} mins`, color, bg };
-    }
-    
-    // Fallback if Firebase hasn't loaded yet
-    return { gate: 'Main Gate', wait: 'Calculating...', color: 'text-slate-400', bg: 'bg-slate-500/10' };
+    if (s === 'north') return { gate: 'Gate N', wait: '5 mins', color: 'text-emerald-400', bg: 'bg-emerald-500/10' };
+    if (s === 'south') return { gate: 'Gate S', wait: '12 mins', color: 'text-yellow-400', bg: 'bg-yellow-500/10' };
+    if (s === 'east') return { gate: 'Gate E', wait: '2 mins', color: 'text-emerald-400', bg: 'bg-emerald-500/10' };
+    if (s === 'west') return { gate: 'Gate W', wait: '8 mins', color: 'text-yellow-400', bg: 'bg-yellow-500/10' };
+    return { gate: 'Main Gate', wait: '10 mins', color: 'text-slate-400', bg: 'bg-slate-500/10' };
   };
 
   const routeInfo = ticket ? getRouteInfo(ticket.stand) : null;
