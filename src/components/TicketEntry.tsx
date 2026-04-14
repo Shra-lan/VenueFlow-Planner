@@ -85,6 +85,7 @@ export default function TicketEntry({ onTicketSubmit }: TicketEntryProps) {
             <QrCode className="w-16 h-16 text-slate-600 group-hover:text-indigo-400 transition-colors mb-4" />
             <button 
               onClick={simulateScan}
+              aria-label="Tap to Scan Ticket"
               className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-full text-sm font-medium transition-colors"
             >
               Tap to Scan Ticket
@@ -104,6 +105,7 @@ export default function TicketEntry({ onTicketSubmit }: TicketEntryProps) {
         <div className="relative">
           <input
             type="text"
+            aria-label="Ticket Number"
             value={ticketStr}
             onChange={(e) => setTicketStr(e.target.value)}
             placeholder="e.g., North_A_1_12"
@@ -111,6 +113,7 @@ export default function TicketEntry({ onTicketSubmit }: TicketEntryProps) {
           />
           <button
             type="submit"
+            aria-label="Submit Ticket"
             disabled={!ticketStr.trim()}
             className="absolute right-2 top-2 bottom-2 aspect-square bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-lg flex items-center justify-center transition-colors"
           >

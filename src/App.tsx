@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapPin, Navigation, Users, AlertCircle, ChevronLeft, Search, Menu, Clock, ArrowRight, ExternalLink, Shield, AlertTriangle, X } from 'lucide-react';
 import StadiumMap from './components/StadiumMap';
@@ -6,16 +6,56 @@ import TicketEntry, { TicketData } from './components/TicketEntry';
 import IndoorNavigation from './components/IndoorNavigation';
 import StaffDashboard from './components/StaffDashboard';
 import Recommendations from './components/Recommendations';
+import { db } from './firebase';
+import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
+
+interface GateStatus {
+  id: string;
+  name: string;
+  waitTime: number;
+  status: 'normal' | 'busy' | 'closed';
+}
+
+interface Alert {
+  id: string;
+  message: string;
+  type: 'info' | 'warning' | 'critical';
+  time: string;
+}
 
 export default function App() {
   const [activeView, setActiveView] = useState<'landing' | 'routing' | 'navigation' | 'staff'>('landing');
   const [ticket, setTicket] = useState<TicketData | null>(null);
   
-  // Mock global alert state (would come from Firebase in production)
-  const [activeAlert, setActiveAlert] = useState<{message: string, type: 'warning' | 'info' | 'critical'} | null>({
-    message: "South Stand concessions experiencing high volume. Please use East Wing.",
-    type: "warning"
-  });
+  const [activeAlert, setActiveAlert] = useState<Alert | null>(null);
+  const [gates, setGates] = useState<Record<string, GateStatus>>({});
+
+  useEffect(() => {
+    // Listen to the most recent alert
+    const q = query(collection(db, 'alerts'), orderBy('createdAt', 'desc'), limit(1));
+    const unsubscribeAlerts = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const doc = snapshot.docs[0];
+        setActiveAlert({ id: doc.id, ...doc.data() } as Alert);
+      } else {
+        setActiveAlert(null);
+      }
+    });
+
+    // Listen to all gates
+    const unsubscribeGates = onSnapshot(collection(db, 'gates'), (snapshot) => {
+      const gatesMap: Record<string, GateStatus> = {};
+      snapshot.forEach((doc) => {
+        gatesMap[doc.id] = { id: doc.id, ...doc.data() } as GateStatus;
+      });
+      setGates(gatesMap);
+    });
+
+    return () => {
+      unsubscribeAlerts();
+      unsubscribeGates();
+    };
+  }, []);
 
   const handleTicketSubmit = (ticketData: TicketData) => {
     setTicket(ticketData);
@@ -43,14 +83,32 @@ export default function App() {
     }
   };
 
-  // Mock routing logic based on stand
+  // Live routing logic based on stand and Firebase data
   const getRouteInfo = (stand: string) => {
     const s = stand.toLowerCase();
-    if (s === 'north') return { gate: 'Gate N', wait: '5 mins', color: 'text-emerald-400', bg: 'bg-emerald-500/10' };
-    if (s === 'south') return { gate: 'Gate S', wait: '12 mins', color: 'text-yellow-400', bg: 'bg-yellow-500/10' };
-    if (s === 'east') return { gate: 'Gate E', wait: '2 mins', color: 'text-emerald-400', bg: 'bg-emerald-500/10' };
-    if (s === 'west') return { gate: 'Gate W', wait: '8 mins', color: 'text-yellow-400', bg: 'bg-yellow-500/10' };
-    return { gate: 'Main Gate', wait: '10 mins', color: 'text-slate-400', bg: 'bg-slate-500/10' };
+    let gateId = 'n';
+    if (s === 'north') gateId = 'n';
+    else if (s === 'south') gateId = 's';
+    else if (s === 'east') gateId = 'e';
+    else if (s === 'west') gateId = 'w';
+    
+    const gateData = gates[gateId];
+    
+    if (gateData) {
+      let color = 'text-emerald-400';
+      let bg = 'bg-emerald-500/10';
+      if (gateData.status === 'busy') {
+        color = 'text-yellow-400';
+        bg = 'bg-yellow-500/10';
+      } else if (gateData.status === 'closed') {
+        color = 'text-red-400';
+        bg = 'bg-red-500/10';
+      }
+      return { gate: gateData.name, wait: `${gateData.waitTime} mins`, color, bg };
+    }
+    
+    // Fallback if Firebase hasn't loaded yet
+    return { gate: 'Main Gate', wait: 'Calculating...', color: 'text-slate-400', bg: 'bg-slate-500/10' };
   };
 
   const routeInfo = ticket ? getRouteInfo(ticket.stand) : null;
@@ -85,12 +143,13 @@ export default function App() {
             {activeView === 'routing' ? (
               <button 
                 onClick={handleBack}
+                aria-label="Go back"
                 className="p-2 -ml-2 hover:bg-slate-800 rounded-full transition-colors"
               >
                 <ChevronLeft className="w-6 h-6 text-slate-300" />
               </button>
             ) : (
-              <button className="p-2 -ml-2 hover:bg-slate-800 rounded-full transition-colors">
+              <button aria-label="Menu" className="p-2 -ml-2 hover:bg-slate-800 rounded-full transition-colors">
                 <Menu className="w-6 h-6 text-slate-300" />
               </button>
             )}
@@ -107,12 +166,13 @@ export default function App() {
           <div className="flex items-center gap-2">
             <button 
               onClick={toggleStaffDashboard}
+              aria-label="Staff Dashboard"
               className="p-2 hover:bg-slate-800 rounded-full transition-colors"
               title="Staff Dashboard"
             >
               <Shield className="w-5 h-5 text-indigo-400" />
             </button>
-            <button className="p-2 hover:bg-slate-800 rounded-full transition-colors">
+            <button aria-label="Search" className="p-2 hover:bg-slate-800 rounded-full transition-colors">
               <Search className="w-5 h-5 text-slate-400" />
             </button>
           </div>
@@ -147,6 +207,7 @@ export default function App() {
               </p>
               <button 
                 onClick={() => setActiveAlert(null)} 
+                aria-label="Dismiss alert"
                 className="opacity-60 hover:opacity-100 transition-opacity p-1 -mr-1"
               >
                 <X className="w-4 h-4 text-slate-300" />

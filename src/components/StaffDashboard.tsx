@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Shield, Radio, Clock, AlertTriangle, CheckCircle2, Users, Send } from 'lucide-react';
+import { Shield, Radio, Clock, AlertTriangle, CheckCircle2, Users, Send, LogIn, LogOut } from 'lucide-react';
+import { db, auth } from '../firebase';
+import { collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, query, orderBy, serverTimestamp, getDocs } from 'firebase/firestore';
+import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, User } from 'firebase/auth';
 
 interface GateStatus {
   id: string;
@@ -14,40 +17,130 @@ interface Alert {
   message: string;
   type: 'info' | 'warning' | 'critical';
   time: string;
+  createdAt?: any;
 }
 
 export default function StaffDashboard() {
-  const [gates, setGates] = useState<GateStatus[]>([
-    { id: 'n', name: 'Gate N', waitTime: 5, status: 'normal' },
-    { id: 's', name: 'Gate S', waitTime: 12, status: 'busy' },
-    { id: 'e', name: 'Gate E', waitTime: 2, status: 'normal' },
-    { id: 'w', name: 'Gate W', waitTime: 8, status: 'normal' },
-  ]);
-
-  const [alerts, setAlerts] = useState<Alert[]>([
-    { id: '1', message: 'South Stand concessions experiencing high volume.', type: 'warning', time: '10:42 AM' },
-  ]);
-
+  const [user, setUser] = useState<User | null>(null);
+  const [gates, setGates] = useState<GateStatus[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
   const [newAlertMsg, setNewAlertMsg] = useState('');
   const [newAlertType, setNewAlertType] = useState<'info' | 'warning' | 'critical'>('info');
 
-  const handleUpdateWaitTime = (id: string, newTime: number) => {
-    setGates(gates.map(g => g.id === id ? { ...g, waitTime: newTime, status: newTime > 10 ? 'busy' : 'normal' } : g));
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribeAuth();
+  }, []);
+
+  useEffect(() => {
+    // Listen to Gates
+    const unsubscribeGates = onSnapshot(collection(db, 'gates'), (snapshot) => {
+      const gatesData: GateStatus[] = [];
+      snapshot.forEach((doc) => {
+        gatesData.push({ id: doc.id, ...doc.data() } as GateStatus);
+      });
+      // Sort by name
+      gatesData.sort((a, b) => a.name.localeCompare(b.name));
+      setGates(gatesData);
+    }, (error) => {
+      console.error("Error fetching gates:", error);
+    });
+
+    // Listen to Alerts
+    const q = query(collection(db, 'alerts'), orderBy('createdAt', 'desc'));
+    const unsubscribeAlerts = onSnapshot(q, (snapshot) => {
+      const alertsData: Alert[] = [];
+      snapshot.forEach((doc) => {
+        alertsData.push({ id: doc.id, ...doc.data() } as Alert);
+      });
+      setAlerts(alertsData);
+    }, (error) => {
+      console.error("Error fetching alerts:", error);
+    });
+
+    return () => {
+      unsubscribeGates();
+      unsubscribeAlerts();
+    };
+  }, []);
+
+  // Initialize default gates if empty
+  useEffect(() => {
+    const initGates = async () => {
+      if (!user) return;
+      const snapshot = await getDocs(collection(db, 'gates'));
+      if (snapshot.empty) {
+        const defaultGates = [
+          { id: 'n', name: 'Gate N', waitTime: 5, status: 'normal' },
+          { id: 's', name: 'Gate S', waitTime: 12, status: 'busy' },
+          { id: 'e', name: 'Gate E', waitTime: 2, status: 'normal' },
+          { id: 'w', name: 'Gate W', waitTime: 8, status: 'normal' },
+        ];
+        for (const gate of defaultGates) {
+          await setDoc(doc(db, 'gates', gate.id), {
+            name: gate.name,
+            waitTime: gate.waitTime,
+            status: gate.status
+          });
+        }
+      }
+    };
+    initGates();
+  }, [user]);
+
+  const handleLogin = async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      console.error("Error signing in", error);
+    }
   };
 
-  const handleSendAlert = (e: React.FormEvent) => {
+  const handleLogout = async () => {
+    await signOut(auth);
+  };
+
+  const handleUpdateWaitTime = async (id: string, newTime: number) => {
+    if (!user) return;
+    try {
+      const status = newTime > 10 ? 'busy' : 'normal';
+      await updateDoc(doc(db, 'gates', id), {
+        waitTime: newTime,
+        status: status
+      });
+    } catch (error) {
+      console.error("Error updating wait time:", error);
+    }
+  };
+
+  const handleSendAlert = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newAlertMsg.trim()) return;
+    if (!newAlertMsg.trim() || !user) return;
     
-    const newAlert: Alert = {
-      id: Date.now().toString(),
-      message: newAlertMsg,
-      type: newAlertType,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-    
-    setAlerts([newAlert, ...alerts]);
-    setNewAlertMsg('');
+    try {
+      const newAlertRef = doc(collection(db, 'alerts'));
+      await setDoc(newAlertRef, {
+        message: newAlertMsg,
+        type: newAlertType,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        createdAt: serverTimestamp()
+      });
+      setNewAlertMsg('');
+    } catch (error) {
+      console.error("Error sending alert:", error);
+    }
+  };
+
+  const handleDeleteAlert = async (id: string) => {
+    if (!user) return;
+    try {
+      await deleteDoc(doc(db, 'alerts', id));
+    } catch (error) {
+      console.error("Error deleting alert:", error);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -55,6 +148,27 @@ export default function StaffDashboard() {
     if (status === 'busy') return 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20';
     return 'text-red-400 bg-red-500/10 border-red-500/20';
   };
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-md w-full text-center">
+          <div className="w-16 h-16 bg-indigo-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Shield className="w-8 h-8 text-indigo-400" />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-100 mb-2">Staff Authentication</h1>
+          <p className="text-slate-400 mb-8">Please sign in to access the VenueFlow Command Center.</p>
+          <button 
+            onClick={handleLogin}
+            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+          >
+            <LogIn className="w-5 h-5" />
+            Sign in with Google
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 p-4 md:p-8 font-sans">
@@ -76,6 +190,13 @@ export default function StaffDashboard() {
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
               <span className="text-sm font-medium text-emerald-400">System Online</span>
             </div>
+            <button 
+              onClick={handleLogout}
+              className="p-2 hover:bg-slate-800 rounded-full transition-colors text-slate-400"
+              title="Sign Out"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
           </div>
         </header>
 
@@ -191,22 +312,32 @@ export default function StaffDashboard() {
               <div className="flex-1">
                 <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Active Alerts</h3>
                 <div className="space-y-3">
+                  {alerts.length === 0 && (
+                    <p className="text-slate-500 text-sm text-center py-4">No active alerts.</p>
+                  )}
                   {alerts.map(alert => (
                     <motion.div 
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       key={alert.id} 
-                      className={`p-4 rounded-xl border ${
+                      className={`p-4 rounded-xl border relative group ${
                         alert.type === 'info' ? 'bg-blue-500/10 border-blue-500/20' :
                         alert.type === 'warning' ? 'bg-yellow-500/10 border-yellow-500/20' :
                         'bg-red-500/10 border-red-500/20'
                       }`}
                     >
+                      <button 
+                        onClick={() => handleDeleteAlert(alert.id)}
+                        className="absolute top-2 right-2 p-1 bg-slate-900/50 hover:bg-slate-800 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Delete Alert"
+                      >
+                        <span className="text-xs text-slate-400">Clear</span>
+                      </button>
                       <div className="flex items-start gap-3">
                         {alert.type === 'info' && <CheckCircle2 className="w-5 h-5 text-blue-400 shrink-0" />}
                         {alert.type === 'warning' && <AlertTriangle className="w-5 h-5 text-yellow-400 shrink-0" />}
                         {alert.type === 'critical' && <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />}
-                        <div>
+                        <div className="pr-6">
                           <p className={`text-sm font-medium ${
                             alert.type === 'info' ? 'text-blue-100' :
                             alert.type === 'warning' ? 'text-yellow-100' :

@@ -1,0 +1,80 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: gates
+    // Document ID: string (e.g., 'n', 's', 'e', 'w')
+    // Fields:
+    //   - name: string (required) - name of the gate
+    //   - waitTime: number (required) - wait time in minutes
+    //   - status: string (required) - 'normal', 'busy', 'closed'
+    //
+    // Collection: alerts
+    // Document ID: auto-generated string
+    // Fields:
+    //   - message: string (required) - alert message
+    //   - type: string (required) - 'info', 'warning', 'critical'
+    //   - time: string (required) - formatted time string
+    //   - createdAt: timestamp (required) - creation time
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+    
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidGate(data) {
+      return hasOnlyAllowedFields(['name', 'waitTime', 'status']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 50 &&
+             data.waitTime is number && data.waitTime >= 0 && data.waitTime <= 300 &&
+             data.status in ['normal', 'busy', 'closed'];
+    }
+
+    function isValidAlert(data) {
+      return hasOnlyAllowedFields(['message', 'type', 'time', 'createdAt']) &&
+             data.message is string && data.message.size() > 0 && data.message.size() < 500 &&
+             data.type in ['info', 'warning', 'critical'] &&
+             data.time is string && data.time.size() > 0 && data.time.size() < 20 &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    
+    // Gates Collection
+    match /gates/{gateId} {
+      // Anyone can read gate wait times
+      allow read: if true;
+      // Only authenticated staff can update gate wait times
+      allow create, update: if isAuthenticated() && isValidGate(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    // Alerts Collection
+    match /alerts/{alertId} {
+      // Anyone can read active alerts
+      allow read: if true;
+      // Only authenticated staff can create/update alerts
+      allow create, update: if isAuthenticated() && isValidAlert(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+  }
+}
