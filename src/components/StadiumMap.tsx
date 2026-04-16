@@ -1,12 +1,45 @@
-import { motion } from 'motion/react';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
-import { ZoomIn, ZoomOut, Maximize } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, Activity } from 'lucide-react';
 
 interface StadiumMapProps {
   highlightStand?: string;
 }
 
 export default function StadiumMap({ highlightStand }: StadiumMapProps) {
+  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [densities, setDensities] = useState<Record<string, number>>({
+    north: 0.8,
+    south: 0.3,
+    west: 0.6,
+    east: 0.2,
+    pitch: 0.5,
+  });
+
+  // Simulate live updating data when heatmap is active
+  useEffect(() => {
+    if (!showHeatmap) return;
+    const interval = setInterval(() => {
+      setDensities(prev => {
+        const next = { ...prev };
+        Object.keys(next).forEach(key => {
+          // Adjust density randomly by -0.15 to +0.15, keeping it between 0.1 and 1.0
+          const change = (Math.random() - 0.5) * 0.3;
+          next[key] = Math.max(0.1, Math.min(1.0, next[key] + change));
+        });
+        return next;
+      });
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [showHeatmap]);
+
+  // Returns a color from Green (low) to Red (high) based on density
+  const getHeatmapColor = (density: number) => {
+    const hue = (1 - density) * 120; // 120 is green, 0 is red
+    return `hsla(${hue}, 100%, 50%, 0.6)`;
+  };
+
   const stands = [
     { id: 'north', name: 'North Stand', x: 100, y: 40, width: 200, height: 80, rx: 20 },
     { id: 'south', name: 'South Stand', x: 100, y: 480, width: 200, height: 80, rx: 20 },
@@ -33,10 +66,26 @@ export default function StadiumMap({ highlightStand }: StadiumMapProps) {
     }
   };
 
-  const activePath = highlightStand ? getPathForStand(highlightStand) : "";
+  const activePath = highlightStand && !showHeatmap ? getPathForStand(highlightStand) : "";
 
   return (
-    <div className="relative w-full aspect-[3/4] max-h-[50vh] mx-auto flex items-center justify-center p-4 bg-slate-900/30 rounded-3xl overflow-hidden border border-slate-800/50">
+    <div className="relative w-full aspect-[3/4] max-h-[50vh] mx-auto flex items-center justify-center bg-slate-900/30 rounded-3xl overflow-hidden border border-slate-800/50">
+      
+      {/* Live Density Toggle */}
+      <div className="absolute top-4 left-4 z-20">
+        <button
+          onClick={() => setShowHeatmap(!showHeatmap)}
+          className={`px-4 py-2 rounded-full text-xs font-bold tracking-wide flex items-center gap-2 transition-all shadow-lg backdrop-blur-md border ${
+            showHeatmap 
+              ? 'bg-rose-500/20 border-rose-500/50 text-rose-400 shadow-rose-500/20' 
+              : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700'
+          }`}
+        >
+          <Activity className={`w-4 h-4 ${showHeatmap ? 'animate-pulse' : ''}`} />
+          {showHeatmap ? 'LIVE CROWD DENSITY' : 'SHOW DENSITY'}
+        </button>
+      </div>
+
       <TransformWrapper
         initialScale={1}
         minScale={0.5}
@@ -72,7 +121,16 @@ export default function StadiumMap({ highlightStand }: StadiumMapProps) {
             </div>
 
             <TransformComponent wrapperClass="w-full h-full" contentClass="w-full h-full">
-              <svg viewBox="0 0 400 600" className="w-full h-full drop-shadow-2xl cursor-grab active:cursor-grabbing">
+              <svg viewBox="0 0 400 600" className="w-full h-full drop-shadow-2xl cursor-grab active:cursor-grabbing pb-8">
+                
+                {/* Defs for Glow Filter */}
+                <defs>
+                  <filter id="heatmap-blur" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="15" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                  </filter>
+                </defs>
+
                 {/* Background / Outer Stadium */}
                 <rect x="5" y="5" width="390" height="590" rx="60" className="fill-slate-900 stroke-slate-800 stroke-2" />
                 
@@ -92,7 +150,7 @@ export default function StadiumMap({ highlightStand }: StadiumMapProps) {
 
                 {/* Gates */}
                 {gates.map(gate => {
-                  const isTargetGate = highlightStand && gate.id.toLowerCase().includes(highlightStand.charAt(0).toLowerCase());
+                  const isTargetGate = highlightStand && !showHeatmap && gate.id.toLowerCase().includes(highlightStand.charAt(0).toLowerCase());
                   return (
                     <g key={gate.id}>
                       <circle 
@@ -114,17 +172,34 @@ export default function StadiumMap({ highlightStand }: StadiumMapProps) {
                 })}
 
                 {/* The Pitch */}
-                <rect x="100" y="140" width="200" height="320" rx="10" className="fill-emerald-900/40 stroke-emerald-500/50 stroke-2" />
-                
-                {/* Pitch Markings */}
-                <line x1="100" y1="300" x2="300" y2="300" className="stroke-emerald-500/30 stroke-2" />
-                <circle cx="200" cy="300" r="40" className="fill-transparent stroke-emerald-500/30 stroke-2" />
-                <rect x="140" y="140" width="120" height="40" className="fill-transparent stroke-emerald-500/30 stroke-2" />
-                <rect x="140" y="420" width="120" height="40" className="fill-transparent stroke-emerald-500/30 stroke-2" />
+                <g>
+                  <rect x="100" y="140" width="200" height="320" rx="10" className="fill-emerald-900/40 stroke-emerald-500/50 stroke-2" />
+                  
+                  {/* Heatmap overlay for Pitch */}
+                  <AnimatePresence>
+                    {showHeatmap && (
+                      <motion.rect
+                        x="100" y="140" width="200" height="320" rx="10"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1, fill: getHeatmapColor(densities.pitch) }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.8 }}
+                        filter="url(#heatmap-blur)"
+                        className="mix-blend-screen"
+                      />
+                    )}
+                  </AnimatePresence>
+
+                  {/* Pitch Markings OVER the heatmap */}
+                  <line x1="100" y1="300" x2="300" y2="300" className="stroke-emerald-500/30 stroke-2 pointer-events-none" />
+                  <circle cx="200" cy="300" r="40" className="fill-transparent stroke-emerald-500/30 stroke-2 pointer-events-none" />
+                  <rect x="140" y="140" width="120" height="40" className="fill-transparent stroke-emerald-500/30 stroke-2 pointer-events-none" />
+                  <rect x="140" y="420" width="120" height="40" className="fill-transparent stroke-emerald-500/30 stroke-2 pointer-events-none" />
+                </g>
 
                 {/* Stands */}
                 {stands.map((stand) => {
-                  const isHighlighted = highlightStand?.toLowerCase() === stand.id;
+                  const isHighlighted = highlightStand?.toLowerCase() === stand.id && !showHeatmap;
                   const cx = stand.x + stand.width / 2;
                   const cy = stand.y + stand.height / 2;
                   const rotation = stand.id === 'west' ? -90 : stand.id === 'east' ? 90 : 0;
@@ -134,10 +209,11 @@ export default function StadiumMap({ highlightStand }: StadiumMapProps) {
                       key={stand.id}
                       initial={{ opacity: 1 }}
                       animate={{
-                        opacity: highlightStand ? (isHighlighted ? 1 : 0.3) : 1
+                        opacity: highlightStand && !showHeatmap ? (isHighlighted ? 1 : 0.3) : 1
                       }}
                       transition={{ duration: 0.5 }}
                     >
+                      {/* Base Stand Rectangle */}
                       <rect
                         x={stand.x}
                         y={stand.y}
@@ -150,14 +226,34 @@ export default function StadiumMap({ highlightStand }: StadiumMapProps) {
                             : 'fill-slate-800/50 stroke-slate-700'
                         }`}
                       />
+
+                      {/* Heatmap Overlay */}
+                      <AnimatePresence>
+                        {showHeatmap && (
+                          <motion.rect
+                            x={stand.x}
+                            y={stand.y}
+                            width={stand.width}
+                            height={stand.height}
+                            rx={stand.rx}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1, fill: getHeatmapColor(densities[stand.id]) }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.8 }}
+                            filter="url(#heatmap-blur)"
+                            className="mix-blend-screen pointer-events-none"
+                          />
+                        )}
+                      </AnimatePresence>
+
                       <text
                         x={cx}
                         y={cy}
                         textAnchor="middle"
                         alignmentBaseline="middle"
                         transform={rotation ? `rotate(${rotation}, ${cx}, ${cy})` : undefined}
-                        className={`text-xs font-semibold tracking-wider pointer-events-none ${
-                          isHighlighted ? 'fill-white' : 'fill-slate-400'
+                        className={`text-xs font-semibold tracking-wider pointer-events-none drop-shadow-md ${
+                          isHighlighted || showHeatmap ? 'fill-white' : 'fill-slate-400'
                         }`}
                       >
                         {stand.name}

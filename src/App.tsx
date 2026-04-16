@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { MapPin, Navigation, Users, AlertCircle, ChevronLeft, Search, Menu, Clock, ArrowRight, ExternalLink, Shield, AlertTriangle, X } from 'lucide-react';
+import { MapPin, Navigation, Users, AlertCircle, ChevronLeft, Search, Menu, Clock, ArrowRight, ExternalLink, Shield, AlertTriangle, X, Coffee, ShoppingBag, Accessibility as AccessibilityIcon } from 'lucide-react';
 import StadiumMap from './components/StadiumMap';
 import TicketEntry, { TicketData } from './components/TicketEntry';
 import IndoorNavigation from './components/IndoorNavigation';
@@ -9,7 +9,7 @@ import Recommendations from './components/Recommendations';
 import SmartGuide from './components/SmartGuide';
 
 export default function App() {
-  const [activeView, setActiveView] = useState<'landing' | 'routing' | 'navigation' | 'staff'>('landing');
+  const [activeView, setActiveView] = useState<'landing' | 'routing' | 'navigation' | 'staff' | 'food' | 'merch' | 'accessibility'>('landing');
   const [ticket, setTicket] = useState<TicketData | null>(null);
   
   // Menu and Search State
@@ -66,6 +66,71 @@ export default function App() {
     const destination = encodeURIComponent(`Wembley Stadium ${routeInfo.gate}`);
     window.open(`https://www.google.com/maps/dir/?api=1&destination=${destination}`, '_blank', 'noopener,noreferrer');
   };
+
+  const handleMenuClick = (item: string) => {
+    setIsMenuOpen(false);
+    switch (item) {
+      case 'My Tickets':
+        setActiveView(ticket ? 'routing' : 'landing');
+        break;
+      case 'Stadium Map':
+        setActiveView('routing');
+        break;
+      case 'Food & Beverage':
+        setActiveView('food');
+        break;
+      case 'Merchandise':
+        setActiveView('merch');
+        break;
+      case 'Accessibility':
+        setActiveView('accessibility');
+        break;
+      case 'Help & Support':
+        window.dispatchEvent(new CustomEvent('open-smart-guide'));
+        break;
+    }
+  };
+
+  // Helper generic component for the new views
+  const FeatureView = ({ title, icon: Icon, items }: { title: string, icon: any, items: any[] }) => (
+    <motion.div
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      transition={{ duration: 0.3 }}
+      className="px-4 py-6"
+    >
+      <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center">
+          <Icon className="w-5 h-5 text-indigo-400" />
+        </div>
+        {title}
+      </h2>
+      <div className="space-y-4">
+        {items.map((item, i) => (
+          <div key={i} className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-row items-center gap-4 hover:border-slate-700 transition-colors">
+            <div className="flex-1">
+              <h3 className="font-bold text-slate-200 text-lg">{item.name}</h3>
+              <p className="text-sm text-slate-400 mt-1 flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {item.location}</p>
+            </div>
+            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${
+              item.status === 'Open' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
+              item.status === 'Busy' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+              'bg-slate-800 text-slate-500 border-slate-700'
+            }`}>
+              {item.status}
+            </span>
+          </div>
+        ))}
+      </div>
+      <button 
+        onClick={handleBack}
+        className="w-full mt-8 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 font-bold py-4 rounded-xl transition-colors"
+      >
+        Go Back
+      </button>
+    </motion.div>
+  );
 
   if (activeView === 'staff') {
     return (
@@ -166,7 +231,7 @@ export default function App() {
                 {['My Tickets', 'Stadium Map', 'Food & Beverage', 'Merchandise', 'Accessibility', 'Help & Support'].map((item) => (
                   <button 
                     key={item} 
-                    onClick={() => setIsMenuOpen(false)}
+                    onClick={() => handleMenuClick(item)}
                     className="text-left py-3 px-4 rounded-xl hover:bg-slate-800 text-slate-200 font-medium transition-colors"
                   >
                     {item}
@@ -319,7 +384,7 @@ export default function App() {
               <div className="px-4 py-6">
                 <h2 className="text-2xl font-bold mb-1">Your Route</h2>
                 <p className="text-slate-400 text-sm">
-                  Seat: {ticket?.stand} Stand, Row {ticket?.row}, Seat {ticket?.seat}
+                  Seat: {ticket?.stand || 'Not assigned'} Stand, Row {ticket?.row || '-'}, Seat {ticket?.seat || '-'}
                 </p>
               </div>
               
@@ -346,7 +411,7 @@ export default function App() {
                     {/* Step 1 */}
                     <div className="relative">
                       <div className="absolute -left-[30px] w-5 h-5 rounded-full bg-indigo-500 border-4 border-slate-900 flex items-center justify-center z-10"></div>
-                      <p className="font-semibold text-slate-200">Enter via {routeInfo?.gate}</p>
+                      <p className="font-semibold text-slate-200">Enter via {routeInfo?.gate || 'Main Gate'}</p>
                       <p className="text-sm text-slate-500 mt-1">Scan your ticket at the turnstiles.</p>
                     </div>
 
@@ -354,14 +419,14 @@ export default function App() {
                     <div className="relative">
                       <div className="absolute -left-[30px] w-5 h-5 rounded-full bg-slate-700 border-4 border-slate-900 flex items-center justify-center z-10"></div>
                       <p className="font-semibold text-slate-200">Take Concourse Level 1</p>
-                      <p className="text-sm text-slate-500 mt-1">Follow the blue signs towards the {ticket?.stand} Stand.</p>
+                      <p className="text-sm text-slate-500 mt-1">Follow the blue signs towards the {ticket?.stand || 'Main'} Stand.</p>
                     </div>
 
                     {/* Step 3 */}
                     <div className="relative">
                       <div className="absolute -left-[30px] w-5 h-5 rounded-full bg-slate-700 border-4 border-slate-900 flex items-center justify-center z-10"></div>
-                      <p className="font-semibold text-slate-200">Proceed to Row {ticket?.row}</p>
-                      <p className="text-sm text-slate-500 mt-1">Your seat ({ticket?.seat}) will be on the left side of the aisle.</p>
+                      <p className="font-semibold text-slate-200">Proceed to Row {ticket?.row || '-'}</p>
+                      <p className="text-sm text-slate-500 mt-1">Your seat ({ticket?.seat || '-'}) will be on the left side of the aisle.</p>
                     </div>
 
                   </div>
@@ -372,17 +437,19 @@ export default function App() {
                       className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2 border border-slate-700"
                     >
                       <MapPin className="w-4 h-4 text-emerald-400" />
-                      Navigate to {routeInfo?.gate} via Google Maps
+                      Navigate via Google Maps
                       <ExternalLink className="w-4 h-4 text-slate-400 ml-1" />
                     </button>
                     
-                    <button 
-                      onClick={startNavigation}
-                      className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
-                    >
-                      Start Indoor Navigation
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
+                    {ticket && (
+                      <button 
+                        onClick={startNavigation}
+                        className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+                      >
+                        Start Indoor Navigation
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -391,6 +458,45 @@ export default function App() {
               {ticket && <Recommendations stand={ticket.stand} />}
               
             </motion.div>
+          )}
+
+          {activeView === 'food' && (
+            <FeatureView 
+              key="food-view"
+              title="Food & Beverage" 
+              icon={Coffee} 
+              items={[
+                { name: 'The Wembley Burger', location: 'Level 1, North Stand', status: 'Open' },
+                { name: 'Vegan Corner', location: 'Level 2, East Stand', status: 'Open' },
+                { name: 'Taphouse Bar', location: 'Level 1, South Stand', status: 'Busy' }
+              ]} 
+            />
+          )}
+
+          {activeView === 'merch' && (
+            <FeatureView 
+              key="merch-view"
+              title="Merchandise" 
+              icon={ShoppingBag} 
+              items={[
+                { name: 'Main Stadium Store', location: 'Level 1, Olympic Way', status: 'Open' },
+                { name: 'Matchday Kiosk North', location: 'North Stand Concourse', status: 'Open' },
+                { name: 'Exclusive Authentics', location: 'Level 2, West Area', status: 'Closed' }
+              ]} 
+            />
+          )}
+
+          {activeView === 'accessibility' && (
+            <FeatureView 
+              key="accessibility-view"
+              title="Accessibility" 
+              icon={AccessibilityIcon} 
+              items={[
+                { name: 'Sensory Room', location: 'Level 2, West Stand', status: 'Available' },
+                { name: 'Wheelchair Platform', location: 'All Stands, Row 10', status: 'Open' },
+                { name: 'Accessible Restrooms', location: 'Every Concourse Sector', status: 'Open' }
+              ]} 
+            />
           )}
         </AnimatePresence>
 

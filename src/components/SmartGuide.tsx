@@ -17,6 +17,13 @@ export default function SmartGuide() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Listen for custom events from the main app menu
+  useEffect(() => {
+    const handleOpen = () => setIsOpen(true);
+    window.addEventListener('open-smart-guide', handleOpen);
+    return () => window.removeEventListener('open-smart-guide', handleOpen);
+  }, []);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
