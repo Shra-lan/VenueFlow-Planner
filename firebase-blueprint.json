@@ -1,0 +1,28 @@
+{
+  "entities": {
+    "sos_alert": {
+      "title": "SOS Alert",
+      "description": "An emergency alert dispatched by an attendee.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["Medical", "Security"] },
+        "status": { "type": "string", "enum": ["Active", "Resolved"] },
+        "stand": { "type": "string" },
+        "row": { "type": "string" },
+        "column": { "type": "string" },
+        "seat": { "type": "string" },
+        "userId": { "type": "string" },
+        "eta": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "type", "status", "userId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/alerts/{alertId}": {
+      "schema": { "$ref": "#/entities/sos_alert" },
+      "description": "Collection of SOS alerts and their statuses."
+    }
+  }
+}

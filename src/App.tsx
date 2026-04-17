@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { MapPin, Navigation, Users, AlertCircle, ChevronLeft, Search, Menu, Clock, ArrowRight, ExternalLink, Shield, AlertTriangle, X, Coffee, ShoppingBag, Accessibility as AccessibilityIcon, ShieldAlert, PhoneCall, HeartPulse } from 'lucide-react';
+import { MapPin, Navigation, Users, AlertCircle, ChevronLeft, Search, Menu, Clock, ArrowRight, ExternalLink, Shield, AlertTriangle, X, Coffee, ShoppingBag, Accessibility as AccessibilityIcon, ShieldAlert, PhoneCall, HeartPulse, LogIn } from 'lucide-react';
 import StadiumMap from './components/StadiumMap';
 import TicketEntry, { TicketData } from './components/TicketEntry';
 import IndoorNavigation from './components/IndoorNavigation';
@@ -8,16 +8,105 @@ import StaffDashboard from './components/StaffDashboard';
 import Recommendations from './components/Recommendations';
 import SmartGuide from './components/SmartGuide';
 
+// Firebase
+import { auth, db } from './firebase';
+import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+
 export default function App() {
   const [activeView, setActiveView] = useState<'landing' | 'routing' | 'navigation' | 'staff' | 'food' | 'merch' | 'accessibility'>('landing');
   const [ticket, setTicket] = useState<TicketData | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   
   // Menu and Search State
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isSOSOpen, setIsSOSOpen] = useState(false); // SOS State
-  const [activeEmergency, setActiveEmergency] = useState<{ type: 'Medical' | 'Security'; eta: string } | null>(null);
+  const [activeEmergency, setActiveEmergency] = useState<{ id: string; type: 'Medical' | 'Security'; eta: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!activeEmergency?.id) return;
+    
+    // Listen to the specific alert to see if Staff dismissed it in Firebase
+    const unsubscribe = onSnapshot(doc(db, 'alerts', activeEmergency.id), (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        if (data.status === 'Resolved' && data.eta !== 'Cancelled by User') {
+          // A staff member resolved it remotely!
+          setActiveEmergency(null);
+          // Optional: Add a toast notification here if desired
+        }
+      }
+    });
+    
+    return () => unsubscribe();
+  }, [activeEmergency?.id]);
+
+  const handleLogin = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      console.error("Login failed:", error);
+    }
+  };
+
+  const dispatchSOS = async (type: 'Medical' | 'Security', eta: string) => {
+    if (!user) {
+      alert("Please login first to dispatch an emergency alert.");
+      handleLogin();
+      return;
+    }
+
+    try {
+      const alertId = Date.now().toString() + "-" + Math.random().toString(36).substring(2, 6);
+      
+      const newAlert = {
+        id: alertId,
+        type: type,
+        status: 'Active',
+        userId: user.uid,
+        createdAt: serverTimestamp(),
+        stand: ticket?.stand || 'Unknown',
+        row: ticket?.row || 'Unknown',
+        column: ticket?.column || 'Unknown',
+        seat: ticket?.seat || 'Unknown',
+        eta: eta
+      };
+
+      await setDoc(doc(db, 'alerts', alertId), newAlert);
+      
+      setIsSOSOpen(false);
+      setActiveEmergency({ id: alertId, type, eta });
+    } catch (error: any) {
+      console.error("Firebase SOS Error:", error);
+      alert("Failed to connect to the emergency dispatch system. " + error.message);
+    }
+  };
+
+  const cancelSOS = async () => {
+    if (!activeEmergency || !user) return;
+    try {
+      await setDoc(doc(db, 'alerts', activeEmergency.id), {
+        status: 'Resolved',
+        eta: 'Cancelled by User',
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      setActiveEmergency(null);
+    } catch (err: any) {
+      console.error("Firebase Cancel SOS Error:", err);
+      // For demo, forcefully dismiss even if network fails
+      setActiveEmergency(null);
+    }
+  };
 
   // Mock global alert state
   const [activeAlert, setActiveAlert] = useState<{message: string, type: 'warning' | 'info' | 'critical'} | null>({
@@ -564,7 +653,7 @@ export default function App() {
                 </p>
 
                 <button 
-                  onClick={() => { setIsSOSOpen(false); setActiveEmergency({ type: 'Medical', eta: '2 mins' }); }}
+                  onClick={() => dispatchSOS('Medical', '2 mins')}
                   className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 p-4 rounded-2xl flex items-center gap-4 transition-colors group"
                 >
                   <div className="w-12 h-12 rounded-full bg-rose-500/10 flex items-center justify-center shrink-0 group-hover:bg-rose-500/20 transition-colors">
@@ -578,7 +667,7 @@ export default function App() {
                 </button>
 
                 <button 
-                  onClick={() => { setIsSOSOpen(false); setActiveEmergency({ type: 'Security', eta: '3 mins' }); }}
+                  onClick={() => dispatchSOS('Security', '3 mins')}
                   className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 p-4 rounded-2xl flex items-center gap-4 transition-colors group"
                 >
                   <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0 group-hover:bg-blue-500/20 transition-colors">
@@ -659,7 +748,7 @@ export default function App() {
             </div>
 
             <button
-              onClick={() => setActiveEmergency(null)}
+              onClick={cancelSOS}
               className="w-full max-w-sm py-4 border-2 border-slate-800 text-slate-400 font-bold rounded-2xl hover:bg-rose-500/10 hover:border-rose-500/30 hover:text-rose-400 transition-colors"
             >
               Cancel Request

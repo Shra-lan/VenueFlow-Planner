@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidAlert(data) {
+      return data.keys().hasAll(['id', 'type', 'status', 'userId', 'createdAt', 'stand', 'row', 'column', 'seat', 'eta']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.type in ['Medical', 'Security'] &&
+             data.status in ['Active', 'Resolved'] &&
+             data.createdAt is timestamp;
+    }
+
+    match /alerts/{alertId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(alertId) && isValidAlert(incoming()) && incoming().createdAt == request.time;
+      allow update: if isSignedIn() && isValidId(alertId) && isValidAlert(incoming());
+      allow delete: if isSignedIn() && isValidId(alertId);
+    }
+  }
+}

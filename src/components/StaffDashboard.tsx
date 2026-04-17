@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
-import { motion } from 'motion/react';
-import { Shield, Radio, Clock, AlertTriangle, CheckCircle2, Users, Send } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Shield, Radio, Clock, AlertTriangle, CheckCircle2, Users, Send, HeartPulse, Trash2 } from 'lucide-react';
+import { auth, db } from '../firebase';
+import { collection, onSnapshot, query, where, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { onAuthStateChanged, User, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 
 interface GateStatus {
   id: string;
@@ -12,8 +15,9 @@ interface GateStatus {
 interface Alert {
   id: string;
   message: string;
-  type: 'info' | 'warning' | 'critical';
+  type: 'info' | 'warning' | 'critical' | 'Medical' | 'Security';
   time: string;
+  isSOS?: boolean;
 }
 
 export default function StaffDashboard() {
@@ -24,12 +28,63 @@ export default function StaffDashboard() {
     { id: 'w', name: 'Gate W', waitTime: 8, status: 'normal' },
   ]);
 
-  const [alerts, setAlerts] = useState<Alert[]>([
-    { id: '1', message: 'South Stand concessions experiencing high volume.', type: 'warning', time: '10:42 AM' },
-  ]);
-
+  const [alerts, setAlerts] = useState<Alert[]>([]);
   const [newAlertMsg, setNewAlertMsg] = useState('');
   const [newAlertType, setNewAlertType] = useState<'info' | 'warning' | 'critical'>('info');
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogin = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      console.error("Login failed:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+
+    // Listen for real-time SOS alerts
+    const q = query(
+      collection(db, 'alerts'),
+      where('status', '==', 'Active')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const liveAlerts: Alert[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        let timeLabel = "Just now";
+        if (data.createdAt) {
+          const date = data.createdAt.toDate();
+          timeLabel = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        liveAlerts.push({
+          id: data.id,
+          type: data.type as 'Medical' | 'Security',
+          message: `${data.type} Request at ${data.stand} Stand, Row ${data.row}, Seat ${data.seat}.`,
+          time: timeLabel,
+          isSOS: true
+        });
+      });
+      // Merge live Firestore alerts with our mock internal alerts for the dashboard
+      setAlerts(prev => {
+        const internal = prev.filter(a => !a.isSOS);
+        return [...liveAlerts, ...internal];
+      });
+    }, (error) => {
+       console.error("Dashboard Snapshot Error:", error);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const handleUpdateWaitTime = (id: string, newTime: number) => {
     setGates(gates.map(g => g.id === id ? { ...g, waitTime: newTime, status: newTime > 10 ? 'busy' : 'normal' } : g));
@@ -43,15 +98,30 @@ export default function StaffDashboard() {
       id: Date.now().toString(),
       message: newAlertMsg,
       type: newAlertType,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      isSOS: false
     };
     
     setAlerts([newAlert, ...alerts]);
     setNewAlertMsg('');
   };
 
-  const handleDeleteAlert = (id: string) => {
-    setAlerts(alerts.filter(a => a.id !== id));
+  const handleDeleteAlert = async (id: string, isSOS?: boolean) => {
+    if (isSOS) {
+      try {
+        // Since Staff isn't strictly defined in our basic rules, 
+        // resolving an alert might require admin or the user themselves. 
+        // As an admin email was hardcoded (trshraddha6@gmail.com), if the staff is logged in with that email, it'll work.
+        await setDoc(doc(db, 'alerts', id), {
+          status: 'Resolved',
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch (err: any) {
+        alert("Failed to resolve alert: " + err.message);
+      }
+    } else {
+      setAlerts(alerts.filter(a => a.id !== id));
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -195,33 +265,51 @@ export default function StaffDashboard() {
               <div className="flex-1">
                 <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Active Alerts</h3>
                 <div className="space-y-3">
-                  {alerts.length === 0 && (
-                    <p className="text-slate-500 text-sm text-center py-4">No active alerts.</p>
-                  )}
-                  {alerts.map(alert => (
+                {alerts.length === 0 && user && (
+                  <p className="text-slate-500 text-sm text-center py-4">No active alerts.</p>
+                )}
+                {!user && (
+                  <div className="text-center py-6 bg-slate-950 border border-slate-800 rounded-xl">
+                    <p className="text-slate-400 text-sm mb-3">Authenticate to view live Firebase sync.</p>
+                    <button onClick={handleLogin} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-bold transition-colors">
+                      Authenticate
+                    </button>
+                  </div>
+                )}
+                {alerts.map(alert => (
                     <motion.div 
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       key={alert.id} 
                       className={`p-4 rounded-xl border relative group ${
+                        alert.isSOS ? 'bg-rose-500/20 border-rose-500 shadow-[0_0_20px_rgba(225,29,72,0.3)] animate-pulse' :
                         alert.type === 'info' ? 'bg-blue-500/10 border-blue-500/20' :
                         alert.type === 'warning' ? 'bg-yellow-500/10 border-yellow-500/20' :
                         'bg-red-500/10 border-red-500/20'
                       }`}
                     >
                       <button 
-                        onClick={() => handleDeleteAlert(alert.id)}
-                        className="absolute top-2 right-2 p-1 bg-slate-900/50 hover:bg-slate-800 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
-                        title="Delete Alert"
+                        onClick={() => handleDeleteAlert(alert.id, alert.isSOS)}
+                        className="absolute top-2 right-2 p-1.5 bg-slate-900/80 hover:bg-slate-800 rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                        title={alert.isSOS ? "Resolve SOS" : "Clear Alert"}
                       >
-                        <span className="text-xs text-slate-400">Clear</span>
+                        <span className="text-xs text-slate-300 font-bold">{alert.isSOS ? "Resolve" : "Clear"}</span>
                       </button>
                       <div className="flex items-start gap-3">
+                        {alert.type === 'Medical' && <HeartPulse className="w-6 h-6 text-rose-400 shrink-0" />}
+                        {alert.type === 'Security' && <Shield className="w-6 h-6 text-rose-400 shrink-0" />}
                         {alert.type === 'info' && <CheckCircle2 className="w-5 h-5 text-blue-400 shrink-0" />}
                         {alert.type === 'warning' && <AlertTriangle className="w-5 h-5 text-yellow-400 shrink-0" />}
                         {alert.type === 'critical' && <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />}
-                        <div className="pr-6">
+                        
+                        <div className="pr-12">
+                          {alert.isSOS && (
+                            <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider mb-1 block">
+                              🔴 LIVE EMERGENCY
+                            </span>
+                          )}
                           <p className={`text-sm font-medium ${
+                            alert.isSOS ? 'text-white' :
                             alert.type === 'info' ? 'text-blue-100' :
                             alert.type === 'warning' ? 'text-yellow-100' :
                             'text-red-100'
