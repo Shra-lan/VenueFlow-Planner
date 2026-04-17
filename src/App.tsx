@@ -8,15 +8,9 @@ import StaffDashboard from './components/StaffDashboard';
 import Recommendations from './components/Recommendations';
 import SmartGuide from './components/SmartGuide';
 
-// Firebase
-import { auth, db, hasFirebaseConfig } from './firebase';
-import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
-
 export default function App() {
   const [activeView, setActiveView] = useState<'landing' | 'routing' | 'navigation' | 'staff' | 'food' | 'merch' | 'accessibility'>('landing');
   const [ticket, setTicket] = useState<TicketData | null>(null);
-  const [user, setUser] = useState<User | null>(null);
   
   // Menu and Search State
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -25,106 +19,13 @@ export default function App() {
   const [activeEmergency, setActiveEmergency] = useState<{ id: string; type: 'Medical' | 'Security'; eta: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  if (!hasFirebaseConfig) {
-    return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-8">
-        <div className="max-w-md w-full bg-slate-900 border border-slate-800 p-8 rounded-2xl text-center">
-          <AlertCircle className="w-16 h-16 text-rose-500 mx-auto mb-6" />
-          <h1 className="text-2xl font-bold mb-4">Deployment Configuration Missing</h1>
-          <p className="text-slate-400 mb-6">
-            The Firebase Web API keys are missing. You deployed this app without setting up the Environment Variables in your hosting dashboard.
-          </p>
-          <div className="bg-slate-950 p-4 rounded-xl text-left border border-slate-800">
-            <p className="text-xs text-rose-400 font-mono">1. Go to Vercel/Netlify Deployment Settings</p>
-            <p className="text-xs text-slate-300 font-mono mt-2">2. Add the VITE_FIREBASE_* variables found in .env.example</p>
-            <p className="text-xs text-emerald-400 font-mono mt-2">3. Rebuild your application.</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (!activeEmergency?.id) return;
-    
-    // Listen to the specific alert to see if Staff dismissed it in Firebase
-    const unsubscribe = onSnapshot(doc(db, 'alerts', activeEmergency.id), (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        if (data.status === 'Resolved' && data.eta !== 'Cancelled by User') {
-          // A staff member resolved it remotely!
-          setActiveEmergency(null);
-          // Optional: Add a toast notification here if desired
-        }
-      }
-    });
-    
-    return () => unsubscribe();
-  }, [activeEmergency?.id]);
-
-  const handleLogin = async () => {
-    try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-    } catch (error) {
-      console.error("Login failed:", error);
-    }
+  const dispatchSOS = (type: 'Medical' | 'Security', eta: string) => {
+    setIsSOSOpen(false);
+    setActiveEmergency({ id: Math.random().toString(36).substring(2, 9), type, eta });
   };
 
-  const dispatchSOS = async (type: 'Medical' | 'Security', eta: string) => {
-    if (!user) {
-      alert("Please login first to dispatch an emergency alert.");
-      handleLogin();
-      return;
-    }
-
-    try {
-      const alertId = Date.now().toString() + "-" + Math.random().toString(36).substring(2, 6);
-      
-      const newAlert = {
-        id: alertId,
-        type: type,
-        status: 'Active',
-        userId: user.uid,
-        createdAt: serverTimestamp(),
-        stand: ticket?.stand || 'Unknown',
-        row: ticket?.row || 'Unknown',
-        column: ticket?.column || 'Unknown',
-        seat: ticket?.seat || 'Unknown',
-        eta: eta
-      };
-
-      await setDoc(doc(db, 'alerts', alertId), newAlert);
-      
-      setIsSOSOpen(false);
-      setActiveEmergency({ id: alertId, type, eta });
-    } catch (error: any) {
-      console.error("Firebase SOS Error:", error);
-      alert("Failed to connect to the emergency dispatch system. " + error.message);
-    }
-  };
-
-  const cancelSOS = async () => {
-    if (!activeEmergency || !user) return;
-    try {
-      await setDoc(doc(db, 'alerts', activeEmergency.id), {
-        status: 'Resolved',
-        eta: 'Cancelled by User',
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-      setActiveEmergency(null);
-    } catch (err: any) {
-      console.error("Firebase Cancel SOS Error:", err);
-      // For demo, forcefully dismiss even if network fails
-      setActiveEmergency(null);
-    }
+  const cancelSOS = () => {
+    setActiveEmergency(null);
   };
 
   // Mock global alert state
