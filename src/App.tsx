@@ -9,7 +9,7 @@ import Recommendations from './components/Recommendations';
 import SmartGuide from './components/SmartGuide';
 
 // Firebase
-import { auth, db } from './firebase';
+import { auth, db, hasFirebaseConfig } from './firebase';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 
@@ -24,6 +24,25 @@ export default function App() {
   const [isSOSOpen, setIsSOSOpen] = useState(false); // SOS State
   const [activeEmergency, setActiveEmergency] = useState<{ id: string; type: 'Medical' | 'Security'; eta: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  if (!hasFirebaseConfig) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-8">
+        <div className="max-w-md w-full bg-slate-900 border border-slate-800 p-8 rounded-2xl text-center">
+          <AlertCircle className="w-16 h-16 text-rose-500 mx-auto mb-6" />
+          <h1 className="text-2xl font-bold mb-4">Deployment Configuration Missing</h1>
+          <p className="text-slate-400 mb-6">
+            The Firebase Web API keys are missing. You deployed this app without setting up the Environment Variables in your hosting dashboard.
+          </p>
+          <div className="bg-slate-950 p-4 rounded-xl text-left border border-slate-800">
+            <p className="text-xs text-rose-400 font-mono">1. Go to Vercel/Netlify Deployment Settings</p>
+            <p className="text-xs text-slate-300 font-mono mt-2">2. Add the VITE_FIREBASE_* variables found in .env.example</p>
+            <p className="text-xs text-emerald-400 font-mono mt-2">3. Rebuild your application.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {

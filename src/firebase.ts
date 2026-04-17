@@ -16,6 +16,22 @@ const firebaseConfig = {
   firestoreDatabaseId: import.meta.env.VITE_FIRESTORE_DATABASE_ID || localConfig.firestoreDatabaseId
 };
 
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || "ai-studio-bed587c9-5321-4301-89c5-07d4e2213990");
-export const auth = getAuth(app);
+export const hasFirebaseConfig = !!firebaseConfig.apiKey;
+
+let app;
+let dbExport: any;
+let authExport: any;
+
+if (hasFirebaseConfig) {
+  app = initializeApp(firebaseConfig);
+  dbExport = getFirestore(app, firebaseConfig.firestoreDatabaseId || "ai-studio-bed587c9-5321-4301-89c5-07d4e2213990");
+  authExport = getAuth(app);
+} else {
+  console.error("Firebase config is missing or incomplete. Please ensure environment variables are set in your deployment dashboard!");
+  // Dummy objects so the app can mount and render a UI warning instead of a white screen
+  dbExport = {} as any;
+  authExport = {} as any;
+}
+
+export const db = dbExport;
+export const auth = authExport;
