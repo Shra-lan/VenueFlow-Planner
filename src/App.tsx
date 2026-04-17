@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { MapPin, Navigation, Users, AlertCircle, ChevronLeft, Search, Menu, Clock, ArrowRight, ExternalLink, Shield, AlertTriangle, X, Coffee, ShoppingBag, Accessibility as AccessibilityIcon } from 'lucide-react';
+import { MapPin, Navigation, Users, AlertCircle, ChevronLeft, Search, Menu, Clock, ArrowRight, ExternalLink, Shield, AlertTriangle, X, Coffee, ShoppingBag, Accessibility as AccessibilityIcon, ShieldAlert, PhoneCall, HeartPulse } from 'lucide-react';
 import StadiumMap from './components/StadiumMap';
 import TicketEntry, { TicketData } from './components/TicketEntry';
 import IndoorNavigation from './components/IndoorNavigation';
@@ -15,6 +15,8 @@ export default function App() {
   // Menu and Search State
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isSOSOpen, setIsSOSOpen] = useState(false); // SOS State
+  const [activeEmergency, setActiveEmergency] = useState<{ type: 'Medical' | 'Security'; eta: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Mock global alert state
@@ -181,6 +183,16 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setIsSOSOpen(true)}
+              aria-label="Emergency SOS"
+              className="p-2 hover:bg-rose-500/20 rounded-full transition-colors group relative"
+              title="Emergency SOS"
+            >
+              <ShieldAlert className="w-5 h-5 text-rose-500 group-hover:text-rose-400" />
+              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500"></span>
+            </button>
             <button 
               onClick={toggleStaffDashboard}
               aria-label="Staff Dashboard"
@@ -519,6 +531,142 @@ export default function App() {
 
       {/* Floating AI Assistant */}
       <SmartGuide />
+
+      {/* Emergency SOS Modal */}
+      <AnimatePresence>
+        {isSOSOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex flex-col items-center justify-end md:justify-center p-4"
+          >
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="w-full max-w-md bg-slate-900 border-2 border-rose-500/50 rounded-3xl shadow-[0_0_50px_rgba(225,29,72,0.3)] overflow-hidden"
+            >
+              <div className="bg-rose-500 p-6 flex flex-col items-center justify-center text-center">
+                <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center mb-3">
+                  <ShieldAlert className="w-8 h-8 text-white" />
+                </div>
+                <h2 className="text-2xl font-bold text-white">Emergency Assistance</h2>
+                <p className="text-rose-100 text-sm mt-2">
+                  If this is a life-threatening emergency, please call local authorities (999/911) immediately.
+                </p>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                <p className="text-slate-300 text-sm font-medium text-center mb-6">
+                  Select an option below to instantly share your location ({ticket?.stand || 'Unknown'} area) with venue staff.
+                </p>
+
+                <button 
+                  onClick={() => { setIsSOSOpen(false); setActiveEmergency({ type: 'Medical', eta: '2 mins' }); }}
+                  className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 p-4 rounded-2xl flex items-center gap-4 transition-colors group"
+                >
+                  <div className="w-12 h-12 rounded-full bg-rose-500/10 flex items-center justify-center shrink-0 group-hover:bg-rose-500/20 transition-colors">
+                    <HeartPulse className="w-6 h-6 text-rose-500" />
+                  </div>
+                  <div className="text-left flex-1">
+                    <h3 className="font-bold text-slate-100 text-lg">Medical Help</h3>
+                    <p className="text-sm text-slate-400">Request a first aid responder</p>
+                  </div>
+                  <ArrowRight className="w-5 h-5 text-slate-500 group-hover:text-rose-400 transition-colors" />
+                </button>
+
+                <button 
+                  onClick={() => { setIsSOSOpen(false); setActiveEmergency({ type: 'Security', eta: '3 mins' }); }}
+                  className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 p-4 rounded-2xl flex items-center gap-4 transition-colors group"
+                >
+                  <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0 group-hover:bg-blue-500/20 transition-colors">
+                    <Shield className="w-6 h-6 text-blue-500" />
+                  </div>
+                  <div className="text-left flex-1">
+                    <h3 className="font-bold text-slate-100 text-lg">Venue Security</h3>
+                    <p className="text-sm text-slate-400">Report an incident or hazard</p>
+                  </div>
+                  <ArrowRight className="w-5 h-5 text-slate-500 group-hover:text-blue-400 transition-colors" />
+                </button>
+
+                <button 
+                  onClick={() => setIsSOSOpen(false)}
+                  className="w-full mt-4 p-4 rounded-2xl text-slate-400 font-bold hover:text-white hover:bg-slate-800 transition-colors"
+                >
+                  Cancel / Close
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Emergency Active Tracking View */}
+      <AnimatePresence>
+        {activeEmergency && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="fixed inset-0 z-[80] bg-slate-950 flex flex-col items-center justify-center p-6 text-center"
+          >
+            <div className="relative flex items-center justify-center mb-10 mt-8">
+              {/* Radar Pulsing Rings */}
+              <motion.div
+                animate={{ scale: [1, 1.8, 2.5], opacity: [0.6, 0.2, 0] }}
+                transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }}
+                className={`absolute w-32 h-32 rounded-full ${activeEmergency.type === 'Medical' ? 'bg-rose-500' : 'bg-blue-500'}`}
+              />
+              <motion.div
+                animate={{ scale: [1, 1.5, 2], opacity: [0.8, 0.4, 0] }}
+                transition={{ repeat: Infinity, duration: 2, delay: 0.6, ease: "easeOut" }}
+                className={`absolute w-32 h-32 rounded-full ${activeEmergency.type === 'Medical' ? 'bg-rose-500' : 'bg-blue-500'}`}
+              />
+              <div className={`w-32 h-32 rounded-full flex items-center justify-center relative z-10 ${activeEmergency.type === 'Medical' ? 'bg-rose-500' : 'bg-blue-600'} shadow-2xl shadow-${activeEmergency.type === 'Medical' ? 'rose' : 'blue'}-500/50`}>
+                {activeEmergency.type === 'Medical' ? <HeartPulse className="w-16 h-16 text-white" /> : <Shield className="w-16 h-16 text-white" />}
+              </div>
+            </div>
+
+            <h2 className="text-3xl font-bold text-white mb-3">
+              {activeEmergency.type} Help Dispatched
+            </h2>
+            <p className="text-slate-400 text-lg mb-10 max-w-sm">
+              Remain at your current location ({ticket?.stand ? `${ticket.stand} Stand, Row ${ticket.row}` : 'Stadium grounds'}). Responders are tracking your device.
+            </p>
+
+            <div className="bg-slate-900 border border-slate-700/50 p-6 rounded-3xl w-full max-w-sm mb-10 shadow-xl">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-slate-400 font-medium">Estimated Arrival</span>
+                <span className={`font-bold text-2xl ${activeEmergency.type === 'Medical' ? 'text-rose-400' : 'text-blue-400'}`}>
+                  {activeEmergency.eta}
+                </span>
+              </div>
+              <div className="h-2.5 bg-slate-800 rounded-full overflow-hidden">
+                 <motion.div
+                   initial={{ width: 0 }}
+                   animate={{ width: "100%" }}
+                   // Mock progress bar showing them arriving over a minute to look realistic 
+                   transition={{ duration: 60, ease: "linear" }} 
+                   className={`h-full ${activeEmergency.type === 'Medical' ? 'bg-rose-500' : 'bg-blue-500'}`}
+                 />
+              </div>
+              <div className="text-sm text-slate-500 mt-5 font-medium flex items-center justify-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                Responder: {activeEmergency.type === 'Medical' ? 'Medic Team Alpha' : 'Security Unit 4'}
+              </div>
+            </div>
+
+            <button
+              onClick={() => setActiveEmergency(null)}
+              className="w-full max-w-sm py-4 border-2 border-slate-800 text-slate-400 font-bold rounded-2xl hover:bg-rose-500/10 hover:border-rose-500/30 hover:text-rose-400 transition-colors"
+            >
+              Cancel Request
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

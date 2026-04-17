@@ -34,19 +34,44 @@ async function startServer() {
 
       const systemInstruction = `You are the VenueFlow Smart Guide, an AI assistant for Wembley Stadium.
 You help attendees find their way around, answer questions about facilities, and provide event information.
+You have access to Google Search! If users ask about real-time weather, traffic, today's schedule, or news outside of your system knowledge, feel free to give them live answers.
 Be concise, friendly, and helpful. Keep responses under 3 sentences when possible.
 If asked about gate wait times, mention that they can check the live wait times on the Recommended Path panel.`;
 
-      const formattedHistory = history ? history.map((msg: any) => ({
-        role: msg.role === 'user' ? 'user' : 'model',
-        parts: [{ text: msg.text }]
-      })) : [];
+      // Strictly clean and alternate the history
+      const cleanedHistory: any[] = [];
+      if (history && Array.isArray(history)) {
+        for (const msg of history) {
+          const role = msg.role === 'user' ? 'user' : 'model';
+          const text = msg.text ? String(msg.text).trim() : "";
+          if (!text) continue; // Skip empty messages entirely
+
+          if (cleanedHistory.length === 0) {
+            if (role === 'user') {
+              cleanedHistory.push({ role, parts: [{ text }] });
+            }
+          } else {
+            if (cleanedHistory[cleanedHistory.length - 1].role !== role) {
+              cleanedHistory.push({ role, parts: [{ text }] });
+            } else {
+              cleanedHistory[cleanedHistory.length - 1].parts[0].text += "\n" + text;
+            }
+          }
+        }
+      }
+
+      const msgText = message.trim() || " ";
+      if (cleanedHistory.length > 0 && cleanedHistory[cleanedHistory.length - 1].role === 'user') {
+        cleanedHistory[cleanedHistory.length - 1].parts[0].text += "\n" + msgText;
+      } else {
+        cleanedHistory.push({ role: 'user', parts: [{ text: msgText }] });
+      }
 
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [
-          ...formattedHistory,
-          { role: "user", parts: [{ text: message }] }
+        model: "gemini-3-flash-preview",
+        contents: cleanedHistory,
+        tools: [
+          { googleSearch: {} }
         ],
         config: {
           systemInstruction: systemInstruction,
@@ -54,7 +79,18 @@ If asked about gate wait times, mention that they can check the live wait times 
         }
       });
 
-      res.json({ response: response.text });
+      let reply = "";
+      try {
+        reply = response.text || "";
+      } catch(e) {
+        reply = response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      }
+      
+      if (!reply) {
+        reply = "I'm sorry, I couldn't access that live information right now.";
+      }
+
+      res.json({ response: reply });
     } catch (error: any) {
       console.error("Error in /api/chat:", error);
       const errorMessage = error.message || "Failed to generate response";
