@@ -2,6 +2,7 @@ import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapPin, Navigation, Users, AlertCircle, ChevronLeft, Search, Menu, Clock, ArrowRight, ExternalLink, Shield, AlertTriangle, X, Coffee, ShoppingBag, Accessibility as AccessibilityIcon, ShieldAlert, PhoneCall, HeartPulse, LogIn, Loader2 } from 'lucide-react';
 import TicketEntry, { TicketData } from './components/TicketEntry';
+import FeatureView from './components/FeatureView';
 
 const StadiumMap = lazy(() => import('./components/StadiumMap'));
 const IndoorNavigation = lazy(() => import('./components/IndoorNavigation'));
@@ -109,47 +110,6 @@ export default function App() {
         break;
     }
   };
-
-  // Helper generic component for the new views
-  const FeatureView = ({ title, icon: Icon, items }: { title: string, icon: any, items: any[] }) => (
-    <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -20 }}
-      transition={{ duration: 0.3 }}
-      className="px-4 py-6"
-    >
-      <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center">
-          <Icon className="w-5 h-5 text-indigo-400" />
-        </div>
-        {title}
-      </h2>
-      <div className="space-y-4">
-        {items.map((item, i) => (
-          <div key={i} className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-row items-center gap-4 hover:border-slate-700 transition-colors">
-            <div className="flex-1">
-              <h3 className="font-bold text-slate-200 text-lg">{item.name}</h3>
-              <p className="text-sm text-slate-400 mt-1 flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {item.location}</p>
-            </div>
-            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${
-              item.status === 'Open' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
-              item.status === 'Busy' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
-              'bg-slate-800 text-slate-500 border-slate-700'
-            }`}>
-              {item.status}
-            </span>
-          </div>
-        ))}
-      </div>
-      <button 
-        onClick={handleBack}
-        className="w-full mt-8 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 font-bold py-4 rounded-xl transition-colors"
-      >
-        Go Back
-      </button>
-    </motion.div>
-  );
 
   if (activeView === 'staff') {
     return (
@@ -502,6 +462,7 @@ export default function App() {
               key="food-view"
               title="Food & Beverage" 
               icon={Coffee} 
+              onBack={handleBack}
               items={[
                 { name: 'The Wembley Burger', location: 'Level 1, North Stand', status: 'Open' },
                 { name: 'Vegan Corner', location: 'Level 2, East Stand', status: 'Open' },
@@ -514,7 +475,8 @@ export default function App() {
             <FeatureView 
               key="merch-view"
               title="Merchandise" 
-              icon={ShoppingBag} 
+              icon={ShoppingBag}
+              onBack={handleBack}
               items={[
                 { name: 'Main Stadium Store', location: 'Level 1, Olympic Way', status: 'Open' },
                 { name: 'Matchday Kiosk North', location: 'North Stand Concourse', status: 'Open' },
@@ -527,7 +489,8 @@ export default function App() {
             <FeatureView 
               key="accessibility-view"
               title="Accessibility" 
-              icon={AccessibilityIcon} 
+              icon={AccessibilityIcon}
+              onBack={handleBack}
               items={[
                 { name: 'Sensory Room', location: 'Level 2, West Stand', status: 'Available' },
                 { name: 'Wheelchair Platform', location: 'All Stands, Row 10', status: 'Open' },
