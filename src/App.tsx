@@ -1,12 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { MapPin, Navigation, Users, AlertCircle, ChevronLeft, Search, Menu, Clock, ArrowRight, ExternalLink, Shield, AlertTriangle, X, Coffee, ShoppingBag, Accessibility as AccessibilityIcon, ShieldAlert, PhoneCall, HeartPulse, LogIn } from 'lucide-react';
-import StadiumMap from './components/StadiumMap';
+import { MapPin, Navigation, Users, AlertCircle, ChevronLeft, Search, Menu, Clock, ArrowRight, ExternalLink, Shield, AlertTriangle, X, Coffee, ShoppingBag, Accessibility as AccessibilityIcon, ShieldAlert, PhoneCall, HeartPulse, LogIn, Loader2 } from 'lucide-react';
 import TicketEntry, { TicketData } from './components/TicketEntry';
-import IndoorNavigation from './components/IndoorNavigation';
-import StaffDashboard from './components/StaffDashboard';
-import Recommendations from './components/Recommendations';
-import SmartGuide from './components/SmartGuide';
+
+const StadiumMap = lazy(() => import('./components/StadiumMap'));
+const IndoorNavigation = lazy(() => import('./components/IndoorNavigation'));
+const StaffDashboard = lazy(() => import('./components/StaffDashboard'));
+const Recommendations = lazy(() => import('./components/Recommendations'));
+const SmartGuide = lazy(() => import('./components/SmartGuide'));
+
+const ViewLoader = () => (
+  <div className="flex flex-col items-center justify-center w-full min-h-[250px] bg-slate-900/50 border border-slate-800/50 rounded-3xl m-4">
+    <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mb-4" />
+    <p className="text-slate-400 font-medium text-sm animate-pulse">Loading framework module...</p>
+  </div>
+);
 
 export default function App() {
   const [activeView, setActiveView] = useState<'landing' | 'routing' | 'navigation' | 'staff' | 'food' | 'merch' | 'accessibility'>('landing');
@@ -153,7 +161,9 @@ export default function App() {
           <ChevronLeft className="w-4 h-4" />
           Back to Attendee App
         </button>
-        <StaffDashboard />
+        <Suspense fallback={<ViewLoader />}>
+          <StaffDashboard />
+        </Suspense>
       </div>
     );
   }
@@ -409,7 +419,9 @@ export default function App() {
                 </p>
               </div>
               
-              <StadiumMap highlightStand={ticket?.stand} />
+              <Suspense fallback={<ViewLoader />}>
+                <StadiumMap highlightStand={ticket?.stand} />
+              </Suspense>
 
               {/* Routing Instructions Panel */}
               <div className="px-4 mt-6">
@@ -476,7 +488,11 @@ export default function App() {
               </div>
 
               {/* Personalized Recommendations */}
-              {ticket && <Recommendations stand={ticket.stand} />}
+              {ticket && (
+                <Suspense fallback={<ViewLoader />}>
+                  <Recommendations stand={ticket.stand} />
+                </Suspense>
+              )}
               
             </motion.div>
           )}
@@ -532,14 +548,18 @@ export default function App() {
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className="fixed inset-0 z-50"
             >
-              <IndoorNavigation ticket={ticket} onExit={endNavigation} />
+              <Suspense fallback={<ViewLoader />}>
+                <IndoorNavigation ticket={ticket} onExit={endNavigation} />
+              </Suspense>
             </motion.div>
           )}
         </AnimatePresence>
       </main>
 
       {/* Floating AI Assistant */}
-      <SmartGuide />
+      <Suspense fallback={null}>
+        <SmartGuide />
+      </Suspense>
 
       {/* Emergency SOS Modal */}
       <AnimatePresence>
