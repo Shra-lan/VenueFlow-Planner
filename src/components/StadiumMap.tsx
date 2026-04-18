@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
-import { ZoomIn, ZoomOut, Maximize, Activity } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, Activity, X } from 'lucide-react';
 
 interface StadiumMapProps {
   highlightStand?: string;
@@ -9,6 +9,7 @@ interface StadiumMapProps {
 
 export default function StadiumMap({ highlightStand }: StadiumMapProps) {
   const [showHeatmap, setShowHeatmap] = useState(false);
+  const [seatView, setSeatView] = useState<typeof stands[0] | null>(null);
   const [densities, setDensities] = useState<Record<string, number>>({
     north: 0.8,
     south: 0.3,
@@ -41,10 +42,10 @@ export default function StadiumMap({ highlightStand }: StadiumMapProps) {
   };
 
   const stands = [
-    { id: 'north', name: 'North Stand', x: 100, y: 40, width: 200, height: 80, rx: 20 },
-    { id: 'south', name: 'South Stand', x: 100, y: 480, width: 200, height: 80, rx: 20 },
-    { id: 'west', name: 'West Stand', x: 20, y: 140, width: 60, height: 320, rx: 20 },
-    { id: 'east', name: 'East Stand', x: 320, y: 140, width: 60, height: 320, rx: 20 },
+    { id: 'north', name: 'North Stand', x: 100, y: 40, width: 200, height: 80, rx: 20, img: "https://upload.wikimedia.org/wikipedia/commons/1/16/Wembley_Stadium_interior.jpg" },
+    { id: 'south', name: 'South Stand', x: 100, y: 480, width: 200, height: 80, rx: 20, img: "https://upload.wikimedia.org/wikipedia/commons/7/79/Wembley_Stadium%2C_London.jpg" },
+    { id: 'west', name: 'West Stand', x: 20, y: 140, width: 60, height: 320, rx: 20, img: "https://upload.wikimedia.org/wikipedia/commons/7/7c/Stamford_Bridge_-_West_Stand.jpg" },
+    { id: 'east', name: 'East Stand', x: 320, y: 140, width: 60, height: 320, rx: 20, img: "https://upload.wikimedia.org/wikipedia/commons/4/43/Old_Trafford_inside_20060726_1.jpg" },
   ];
 
   // Map gates to their approximate positions
@@ -220,7 +221,8 @@ export default function StadiumMap({ highlightStand }: StadiumMapProps) {
                         width={stand.width}
                         height={stand.height}
                         rx={stand.rx}
-                        className={`stroke-2 transition-colors duration-500 ${
+                        onClick={() => setSeatView(stand)}
+                        className={`stroke-2 cursor-pointer transition-colors duration-500 hover:brightness-125 ${
                           isHighlighted 
                             ? 'fill-indigo-500/40 stroke-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.5)]' 
                             : 'fill-slate-800/50 stroke-slate-700'
@@ -273,6 +275,46 @@ export default function StadiumMap({ highlightStand }: StadiumMapProps) {
                 })}
               </svg>
             </TransformComponent>
+
+            {/* View From Seat Overlay */}
+            <AnimatePresence>
+              {seatView && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                  transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                  className="absolute inset-x-0 bottom-4 sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2 z-50 flex items-center justify-center px-4 md:px-8 pointer-events-auto"
+                >
+                  <div className="bg-[#333333] w-full max-w-2xl rounded-sm shadow-2xl overflow-hidden ring-1 ring-white/10">
+                    {/* Header simulating the Ticketmaster-style UI */}
+                    <div className="relative py-4 flex items-center justify-center bg-[#333333] border-b border-[#222]">
+                      <h3 className="text-white text-lg font-light tracking-wide">
+                        Section <span className="font-bold">
+                          {seatView.id === 'north' ? '123' : seatView.id === 'south' ? '532' : seatView.id === 'east' ? '204' : '101'}
+                        </span>
+                      </h3>
+                      <button 
+                        onClick={() => setSeatView(null)} 
+                        className="absolute right-4 p-1 rounded-full text-slate-300 hover:text-white transition-colors"
+                      >
+                        <X className="w-6 h-6"/>
+                      </button>
+                    </div>
+                    {/* Static Image View From Seat (matches reference image) */}
+                    <div className="relative aspect-video w-full bg-black">
+                      <img 
+                        src={seatView.img} 
+                        alt={`View from ${seatView.name}`}
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="absolute inset-0 shadow-[inset_0_0_50px_rgba(0,0,0,0.5)] pointer-events-none" />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </>
         )}
       </TransformWrapper>

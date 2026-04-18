@@ -64,10 +64,8 @@ If asked about gate wait times, mention that they can check the live wait times 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: cleanedHistory,
-      tools: [
-        { googleSearch: {} }
-      ],
       config: {
+        tools: [{ googleSearch: {} }],
         systemInstruction: systemInstruction,
         temperature: 0.7,
       }
@@ -86,6 +84,21 @@ If asked about gate wait times, mention that they can check the live wait times 
 
     res.status(200).json({ response: reply });
   } catch (error: any) {
+    const errorStr = String(error?.message || error);
+    
+    // Safely intercept quota limits to prevent backend crashes in the logs
+    const isQuotaError = 
+      errorStr.includes("Quota exceeded") || 
+      errorStr.includes("429") || 
+      error?.status === 429 || 
+      errorStr.includes("RESOURCE_EXHAUSTED");
+
+    if (isQuotaError) {
+      return res.status(200).json({ 
+        response: "Oops! My AI brain has reached its free tier limit for the day (Rate Limit Exceeded). But I can still tell you the restrooms are located on Level 1, near Section 102!" 
+      });
+    }
+
     console.error("Error in /api/chat:", error);
     const errorMessage = error.message || "Failed to generate response";
     res.status(500).json({ error: errorMessage });

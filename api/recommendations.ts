@@ -44,6 +44,24 @@ Return ONLY a valid JSON array of objects with these keys:
     res.json(parsedJSON);
 
   } catch (error: any) {
+    const errorStr = String(error?.message || error);
+    
+    // Safely intercept quota limits to prevent backend crashes in the logs
+    const isQuotaError = 
+      errorStr.includes("Quota exceeded") || 
+      errorStr.includes("429") || 
+      error?.status === 429 || 
+      errorStr.includes("RESOURCE_EXHAUSTED");
+
+    if (isQuotaError) {
+      return res.status(200).json([
+        { type: "Utensils", title: "Burger Bar (Mock AI)", desc: "Level 1, North Concourse", wait: "5 min wait" },
+        { type: "Droplets", title: "Nearest Restroom", desc: "Gate 102", wait: "No wait" },
+        { type: "Coffee", title: "Pitchside Pints", desc: "Level 2 Atrium", wait: "2 min wait" },
+        { type: "ShoppingBag", title: "Express Merch", desc: "Main Entrance", wait: "Moderate Queue" }
+      ]);
+    }
+
     console.error("Error in /api/recommendations:", error);
     res.status(500).json({ error: "Failed to generate recommendations" });
   }

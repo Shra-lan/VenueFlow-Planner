@@ -139,7 +139,6 @@ export default function TicketEntry({ onTicketSubmit }: TicketEntryProps) {
                       video: 'object-cover w-full h-full'
                     }}
                     components={{
-                      audio: false,
                       finder: false
                     }}
                   />
