@@ -1,31 +1,16 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenAI } from "@google/genai";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-import chatHandler from "./api/chat.ts";
-import recommendationsHandler from "./api/recommendations.ts";
-
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
   app.use(express.json());
-
-  // API Routes - Piping to our modular Vercel handlers for local testing
-  app.post("/api/chat", async (req, res) => {
-    // @ts-ignore - Safely routing express req/res to Vercel signature locally
-    await chatHandler(req, res);
-  });
-
-  app.get("/api/recommendations", async (req, res) => {
-    // @ts-ignore - Safely routing express req/res to Vercel signature locally
-    await recommendationsHandler(req, res);
-  });
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {

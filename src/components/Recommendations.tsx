@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Coffee, Droplets, ShoppingBag, Utensils, Loader2 } from 'lucide-react';
+import { GoogleGenAI } from "@google/genai";
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 interface RecommendationsProps {
   stand: string;
@@ -33,13 +36,28 @@ export default function Recommendations({ stand }: RecommendationsProps) {
   useEffect(() => {
     const fetchRecommendations = async () => {
       try {
-        const response = await fetch(`/api/recommendations?stand=${encodeURIComponent(stand)}`);
-        if (!response.ok) throw new Error("Failed to fetch");
-        const data = await response.json();
+        const prompt = `You are a real-time smart stadium AI for Wembley Stadium.
+Generate exactly 4 customized, hyper-realistic, nearby venue amenities (Food, Restroom, Merch, Drinks) relative to the "${stand}" stand.
+Return ONLY a valid JSON array of objects with these keys:
+- type: (Must be exactly one of: "Droplets", "Utensils", "Coffee", "ShoppingBag")
+- title: (Short compelling name, e.g. "Grill 105")
+- desc: (Location description, e.g. "Level 1, ${stand} Concourse")
+- wait: (Realistic wait time, e.g. "5 min wait" or "No wait")`;
+
+        const response = await ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: prompt,
+          config: {
+            temperature: 0.8,
+            responseMimeType: "application/json",
+          }
+        });
+
+        const jsonStr = response.text || "";
+        const data = JSON.parse(jsonStr);
         setRecs(data);
       } catch (err) {
         console.error("AI Gen Failed:", err);
-        // Graceful fallback if Gemini fails or rate limits
         setRecs([
           { type: 'Droplets', title: 'Nearest Restroom', desc: `Level 1, ${stand} Concourse`, wait: 'No wait' },
           { type: 'Utensils', title: 'Hot Food & Grill', desc: 'Section 105 Kiosk', wait: '5 min wait' },

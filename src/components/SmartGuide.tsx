@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageSquare, X, Send, Bot, User, Loader2 } from 'lucide-react';
+import { GoogleGenAI } from "@google/genai";
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 interface Message {
   id: string;
@@ -37,31 +40,67 @@ export default function SmartGuide() {
     if (!input.trim() || isLoading) return;
 
     const userMsg: Message = { id: Date.now().toString(), role: 'user', text: input.trim() };
-    setMessages(prev => [...prev, userMsg]);
+    const chatHistory = [...messages, userMsg];
+    setMessages(chatHistory);
     setInput('');
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: userMsg.text,
-          history: messages.map(m => ({ role: m.role, text: m.text }))
-        })
-      });
+      const systemInstruction = `You are the VenueFlow Smart Guide, an AI assistant for Wembley Stadium.
+You help attendees find their way around, answer questions about facilities, and provide event information.
+You have access to Google Search! If users ask about real-time weather, traffic, today's schedule, or news outside of your system knowledge, feel free to give them live answers.
+Be concise, friendly, and helpful. Keep responses under 3 sentences when possible.
+If asked about gate wait times, mention that they can check the live wait times on the Recommended Path panel.`;
 
-      const data = await response.json();
+      // Strictly clean and alternate the history
+      const cleanedHistory: any[] = [];
+      for (const msg of chatHistory) {
+        const role = msg.role === 'user' ? 'user' : 'model';
+        const text = msg.text ? String(msg.text).trim() : "";
+        if (!text) continue; 
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch response');
+        if (cleanedHistory.length === 0) {
+          if (role === 'user') {
+            cleanedHistory.push({ role, parts: [{ text }] });
+          }
+        } else {
+          if (cleanedHistory[cleanedHistory.length - 1].role !== role) {
+            cleanedHistory.push({ role, parts: [{ text }] });
+          } else {
+            cleanedHistory[cleanedHistory.length - 1].parts[0].text += "\n" + text;
+          }
+        }
       }
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: cleanedHistory,
+        config: {
+          tools: [{ googleSearch: {} }],
+          systemInstruction: systemInstruction,
+          temperature: 0.7,
+        }
+      });
       
-      const modelMsg: Message = { id: (Date.now() + 1).toString(), role: 'model', text: data.response };
+      let reply = response.text || "I'm sorry, I couldn't access that information right now.";
+
+      const modelMsg: Message = { id: (Date.now() + 1).toString(), role: 'model', text: reply };
       setMessages(prev => [...prev, modelMsg]);
     } catch (error: any) {
       console.error("Chat error:", error);
-      const errorMsg: Message = { id: (Date.now() + 1).toString(), role: 'model', text: `Error: ${error.message}` };
+      const errorStr = String(error?.message || error);
+      
+      const isQuotaError = 
+        errorStr.includes("Quota exceeded") || 
+        errorStr.includes("429") || 
+        error?.status === 429 || 
+        errorStr.includes("RESOURCE_EXHAUSTED");
+
+      const reply = isQuotaError ? 
+        "Oops! My AI brain has reached its free tier limit for the day (Rate Limit Exceeded). But I can still tell you the restrooms are located on Level 1, near Section 102!" :
+        `Error: ${error.message}`;
+
+      const errorMsg: Message = { id: (Date.now() + 1).toString(), role: 'model', text: reply };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
       setIsLoading(false);
