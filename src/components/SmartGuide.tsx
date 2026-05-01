@@ -3,8 +3,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { MessageSquare, X, Send, Bot, User, Loader2 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
 interface Message {
   id: string;
   role: 'user' | 'model';
@@ -46,6 +44,12 @@ export default function SmartGuide() {
     setIsLoading(true);
 
     try {
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+      if (!apiKey || apiKey === "MY_GEMINI_API_KEY" || apiKey === "undefined") {
+        throw new Error("Gemini API Key is missing. In AI Studio, go to Settings -> Secrets and add your key as VITE_GEMINI_API_KEY.");
+      }
+      const ai = new GoogleGenAI({ apiKey });
+
       const systemInstruction = `You are the VenueFlow Smart Guide, an AI assistant for Wembley Stadium.
 You help attendees find their way around, answer questions about facilities, and provide event information.
 You have access to Google Search! If users ask about real-time weather, traffic, today's schedule, or news outside of your system knowledge, feel free to give them live answers.

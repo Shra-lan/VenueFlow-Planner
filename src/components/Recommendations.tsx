@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Coffee, Droplets, ShoppingBag, Utensils, Loader2 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
 interface RecommendationsProps {
   stand: string;
 }
@@ -36,6 +34,12 @@ export default function Recommendations({ stand }: RecommendationsProps) {
   useEffect(() => {
     const fetchRecommendations = async () => {
       try {
+        const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+        if (!apiKey || apiKey === "MY_GEMINI_API_KEY" || apiKey === "undefined") {
+          throw new Error("Gemini API Key is missing.");
+        }
+        const ai = new GoogleGenAI({ apiKey });
+
         const prompt = `You are a real-time smart stadium AI for Wembley Stadium.
 Generate exactly 4 customized, hyper-realistic, nearby venue amenities (Food, Restroom, Merch, Drinks) relative to the "${stand}" stand.
 Return ONLY a valid JSON array of objects with these keys:
