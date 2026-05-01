@@ -52,7 +52,6 @@ export default function SmartGuide() {
 
       const systemInstruction = `You are the VenueFlow Smart Guide, an AI assistant for Wembley Stadium.
 You help attendees find their way around, answer questions about facilities, and provide event information.
-You have access to Google Search! If users ask about real-time weather, traffic, today's schedule, or news outside of your system knowledge, feel free to give them live answers.
 Be concise, friendly, and helpful. Keep responses under 3 sentences when possible.
 If asked about gate wait times, mention that they can check the live wait times on the Recommended Path panel.`;
 
@@ -80,7 +79,6 @@ If asked about gate wait times, mention that they can check the live wait times 
         model: "gemini-3-flash-preview",
         contents: cleanedHistory,
         config: {
-          tools: [{ googleSearch: {} }],
           systemInstruction: systemInstruction,
           temperature: 0.7,
         }
